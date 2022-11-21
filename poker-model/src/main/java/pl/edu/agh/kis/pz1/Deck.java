@@ -1,23 +1,28 @@
 package pl.edu.agh.kis.pz1;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 public class Deck {
-    public ArrayList<Card> shuffle(ArrayList<Card> cards) {
-        Collections.shuffle(cards);
+    private ArrayList<Card> deck;
 
-        return cards;
+    Deck() {
+        deck = newDeck();
     }
 
-    public ArrayList<Card> generateDeck() {
-        ArrayList<Card> arr = new ArrayList<Card>();
+    public ArrayList<Card> newDeck() {
+        return Card.newDeck();
+    }
 
-        for (Card.CardRank rank: Card.CardRank.values()) {
-            for (Card.CardSuit suit: Card.CardSuit.values()) {
-                arr.add(new Card(rank, suit));
-            }
-        }
+    public ArrayList<Card> shuffle() {
+        Collections.shuffle(deck);
 
-        return arr;
+        return deck;
+    }
+
+    public ArrayList<Card> deck() { return deck; }
+
+    public Card dealCard() {
+        return deck.remove(0);
     }
 }

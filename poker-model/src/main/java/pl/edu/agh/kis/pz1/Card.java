@@ -1,35 +1,39 @@
 package pl.edu.agh.kis.pz1;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Card  {
-    enum CardRank {
-        ACE,
-        TWO,
-        THREE,
-        FOUR,
-        FIVE,
-        SIX,
-        SEVEN,
-        EIGHT,
-        NINE,
-        TEN,
-        JACK,
-        QUEEN,
-        KING
+    public enum Rank{ DEUCE, THREE, FOUR, FIVE, SIX,SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE }
+    public enum Suit { CLUBS, DIAMONDS, HEARTS, SPADES }
+
+    private final Rank rank;
+    private final Suit suit;
+
+    private static final List<Card> protoDeck = new ArrayList<>();
+
+    static {
+        for (Suit suit: Suit.values())  {
+            for (Rank rank: Rank.values()) {
+                protoDeck.add(new Card(rank, suit));
+            }
+        }
     }
 
-    enum CardSuit {
-        CLUBS,
-        DIAMONDS,
-        HEARTS,
-        SPADES
-    }
-
-    CardRank rank;
-    CardSuit suit;
-
-    Card(CardRank rank, CardSuit suit) {
+    private Card(Rank rank, Suit suit) {
         this.rank = rank;
         this.suit = suit;
+    }
+
+    public Rank rank() { return rank; }
+    public Suit suit() { return suit; }
+
+    public String toString() {
+        return rank + " of " + suit;
+    }
+
+    public static ArrayList<Card> newDeck() {
+        return new ArrayList<>(protoDeck);
     }
 
     @Override

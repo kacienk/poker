@@ -5,12 +5,21 @@ import java.util.ArrayList;
 public class Main {
     public static void main(String[] args) {
         Deck deck = new Deck();
+        ArrayList<Card> cards = new ArrayList<>(deck.deck());
 
-        Card card = deck.dealCard();
+        cards.sort(new CardRankComparator());
 
-        System.out.println(card);
-        System.out.println();
-        for (Card c: deck.deck()) {
+        test(cards);
+
+        for (Card c : cards) {
+            System.out.println(c);
+        }
+
+    }
+
+    private static void test(ArrayList<Card> cards) {
+        cards.sort(new CardSuitComparator());
+        for (Card c : cards) {
             System.out.println(c);
         }
     }

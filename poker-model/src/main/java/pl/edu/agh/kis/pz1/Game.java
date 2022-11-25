@@ -1,5 +1,7 @@
 package pl.edu.agh.kis.pz1;
 
+import pl.edu.agh.kis.pz1.exceptions.*;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -24,9 +26,9 @@ public class Game {
         this.ante = ante;
     }
 
-    public void newPlayer(Integer id) throws Exception {
+    public void newPlayer(Integer id) throws IncorrectNumbersOfPlayersException {
         if (players.size() >= numberOfPlayers)
-            throw new Exception();
+            throw new IncorrectNumbersOfPlayersException("No other player can join this game.");
 
         Player player = new Player(id);
         players.add(player);
@@ -35,9 +37,9 @@ public class Game {
         folded.put(player, false);
     }
 
-    public void newGame() throws Exception {
+    public void newGame() throws IncorrectNumbersOfPlayersException, NotEnoughCreditException {
         if (players.size() < numberOfPlayers)
-            throw new Exception();
+            throw new IncorrectNumbersOfPlayersException("There is too few players to start a game.");
 
         takeAnte();
 
@@ -45,32 +47,43 @@ public class Game {
         dealCards();
     }
 
-    public void draw(int playerId, ArrayList<Integer> cardsToDiscard) throws Exception {
+    public void draw(int playerId, ArrayList<Integer> cardsToDiscard) throws IncorrectNumberOfCardsException, NoSuchCardException {
         if (cardsToDiscard.size() > 4)
-            throw new Exception();
+            throw new IncorrectNumberOfCardsException("Player cannot discard more than 4 cards.");
 
         Player player = players.get(playerIndexFromId(playerId));
         cardsToDiscard.sort(Integer::compareTo);
 
-        for (int i = 0; i < cardsToDiscard.size(); i++) {
-            if (cardsToDiscard.get(i) > 4)
-                throw new Exception();
+        for(Integer card : cardsToDiscard)
+            if (card > 4)
+                throw new NoSuchCardException("There is no such card that player is trying to discard.");
 
+        for (int i = 0; i < cardsToDiscard.size(); i++)
             player.discardCard(cardsToDiscard.get(i) - i);
-        }
 
         for (int i = 0; i < cardsToDiscard.size(); i++)
             player.receiveCard(deck.dealCard());
     }
 
     public void endNegotiation() {
+        for (Player player : players)
+            currentBids.put(player, 0);
+
         currentNegotiationStake = 0;
     }
 
-    public void bid(int playerId, int bidValue) throws Exception {
+    public void bid(int playerId, int bidValue) throws NotEnoughCreditException, TooSmallBidException {
         Player player = players.get(playerIndexFromId(playerId));
 
+        if (currentNegotiationStake > bidValue + currentBids.get(player))
+            throw new TooSmallBidException("Player cannot bid less than current stake. Player have to bid at least" +
+                    (currentNegotiationStake - bidValue) + ".");
+
         player.bid(bidValue);
+
+        if (currentNegotiationStake < bidValue)
+            currentNegotiationStake = bidValue;
+
         currentBids.put(player, bidValue);
         allGameBids.put(player, bidValue);
     }
@@ -102,7 +115,11 @@ public class Game {
         return handValues;
     }
 
-    private void takeAnte() throws Exception {
+    public HashMap<Player, Boolean> getFolded() {
+        return folded;
+    }
+
+    private void takeAnte() throws NotEnoughCreditException {
         for (Player player : players) {
             player.bid(ante);
             allGameBids.put(player, ante);

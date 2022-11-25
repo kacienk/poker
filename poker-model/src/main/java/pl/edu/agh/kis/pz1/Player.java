@@ -1,5 +1,7 @@
 package pl.edu.agh.kis.pz1;
 
+import pl.edu.agh.kis.pz1.exceptions.NotEnoughCreditException;
+
 import java.util.ArrayList;
 
 public class Player {
@@ -24,9 +26,9 @@ public class Player {
         hand.remove(index);
     }
 
-    public void bid(int bidValue) throws Exception {
+    public void bid(int bidValue) throws NotEnoughCreditException {
         if (bidValue > credit)
-            throw new Exception();
+            throw new NotEnoughCreditException("Player has less credit than they want to bid.");
 
         credit -= bidValue;
     }

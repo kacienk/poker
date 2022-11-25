@@ -7,11 +7,11 @@ public class Deck {
     private ArrayList<Card> deck;
 
     Deck() {
-        deck = newDeck();
+        newDeck();
     }
 
-    public ArrayList<Card> newDeck() {
-        return Card.newDeck();
+    public void newDeck() {
+        deck =  Card.newDeck();
     }
 
     public ArrayList<Card> shuffle() {

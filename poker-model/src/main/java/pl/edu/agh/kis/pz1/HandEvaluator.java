@@ -3,8 +3,20 @@ package pl.edu.agh.kis.pz1;
 import java.util.ArrayList;
 
 public class HandEvaluator {
-    public enum HandValues { HIGHCARD, PAIR, TWOPAIR, THREEOFAKIND, STRAIGHT, FLUSH, FULLHOUSE,
-        FOUROFAKIND, STRAIGHTFLUSH }
+    public enum HandValues { HIGHCARD("High card"), PAIR ("Pair"), TWOPAIR("Two pair"), THREEOFAKIND("Three of a kind"),
+        STRAIGHT("Straight"), FLUSH("Flush"), FULLHOUSE("Full house"), FOUROFAKIND("Four of a kind"),
+        STRAIGHTFLUSH("Straight flush");
+
+        private final String evaluation;
+        private HandValues(String eval) {
+            this.evaluation = eval;
+        }
+
+        @Override
+        public String toString() {
+            return evaluation;
+        }
+    }
 
     public HandValues evaluate(ArrayList<Card> hand) {
         // Returns type of the highest hand value

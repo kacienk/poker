@@ -28,7 +28,7 @@ public class Player {
 
     public void bid(int bidValue) throws NotEnoughCreditException {
         if (bidValue > credit)
-            throw new NotEnoughCreditException("Player has less credit than they want to bid.");
+            throw new NotEnoughCreditException("Player has less credit than they want to bid. Player credit:" + credit);
 
         credit -= bidValue;
     }

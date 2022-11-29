@@ -1,11 +1,12 @@
 package pl.edu.agh.kis.pz1;
 
+import java.lang.invoke.CallSite;
 import java.util.ArrayList;
 import java.util.Arrays;
 
 public class MessageParser {
     private final ArrayList<String> args = new ArrayList<>();
-    public enum Action {ACCEPT, DENY, BID, FOLD, HAND, START, DISCONNECT, EVAL, END}
+    public enum Action {ACCEPT, DENY, BID, FOLD, HAND, START, DISCONNECT, EVAL, END, DRAW, CREDIT, PRIZE}
 
     MessageParser() {
 
@@ -35,6 +36,9 @@ public class MessageParser {
             case DISCONNECT -> args.add("dsc");
             case EVAL -> args.add("evl");
             case END -> args.add("end");
+            case DRAW -> args.add("drw");
+            case CREDIT -> args.add("crd");
+            case PRIZE -> args.add("prz");
         }
 
         args.add(actionParameters);
@@ -43,7 +47,6 @@ public class MessageParser {
     }
 
     public int getGameId() {
-        System.out.println(args);
         return Integer.parseInt(args.get(0));
     }
 
@@ -61,6 +64,9 @@ public class MessageParser {
             case "dsc" -> { return Action.DISCONNECT; }
             case "evl" -> { return Action.EVAL; }
             case "end" -> { return Action.END; }
+            case "drw" -> { return Action.DRAW; }
+            case "crd" -> { return Action.CREDIT; }
+            case "prz" -> { return Action.PRIZE; }
             default -> { return Action.DENY; }
         }
     }
@@ -88,5 +94,10 @@ public class MessageParser {
         message = stringBuilder.toString();
 
         return message;
+    }
+
+    @Override
+    public String toString() {
+        return getMessage();
     }
 }

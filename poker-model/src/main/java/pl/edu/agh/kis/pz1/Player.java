@@ -41,6 +41,8 @@ public class Player {
 
     public int getId() { return id; }
 
+    public void clearHand() { hand.clear(); }
+
     public int getCredit() { return credit; }
 
     @Override

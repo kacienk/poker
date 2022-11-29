@@ -60,6 +60,7 @@ public class HandEvaluator {
             case TWOPAIR -> { return settleTwoPairDraw(hand1, hand2); }
             case PAIR -> { return settlePairDraw(hand1, hand2); }
             case HIGHCARD -> { return settleHighCardDraw(hand1, hand2); }
+            default -> { }
         }
 
         return 0;

@@ -10,6 +10,7 @@ public class Game {
     private final HashMap<Player, Integer> currentBids = new HashMap<>();
     private final HashMap<Player, Integer> allGameBids = new HashMap<>();
     private final HashMap<Player, Boolean> folded = new HashMap<>();
+    private final HashMap<Player, Boolean> bidden = new HashMap<>();
     private final ArrayList<Integer> playersToRemove = new ArrayList<>();
     private final Deck deck = new Deck();
     private final int numberOfPlayers;
@@ -18,6 +19,7 @@ public class Game {
     private int stake = 0;
     private int currentNegotiationStake = 0;
     private boolean gameOn = false;
+
     private int dealerId = -1;
 
 
@@ -54,6 +56,7 @@ public class Game {
         currentBids.put(player, 0);
         allGameBids.put(player, 0);
         folded.put(player, false);
+        bidden.put(player, false);
 
         if (dealerId == -1)
             dealerId = id;
@@ -73,6 +76,10 @@ public class Game {
         players.remove(playerIndexFromId(id));
     }
 
+    public boolean canBegin() {
+        return players.size() == numberOfPlayers;
+    }
+
     public void newGame() throws IncorrectNumbersOfPlayersException, NotEnoughCreditException {
         if (players.size() < numberOfPlayers)
             throw new IncorrectNumbersOfPlayersException("There is too few players to start a game.");
@@ -83,6 +90,7 @@ public class Game {
 
         moveDealer();
         folded.replaceAll((p, v) -> false);
+        bidden.replaceAll((p, v) -> false);
         deck.newDeck();
         dealCards();
     }
@@ -105,7 +113,7 @@ public class Game {
 
         for(Integer card: cardsToDiscard)
             if (card > 4)
-                throw new NoSuchCardException("There is no such card that player is trying to discard.");
+                throw new NoSuchCardException("There is no such card that player is trying to discard " + card + ".");
 
         for (int i = 0; i < cardsToDiscard.size(); i++)
             player.discardCard(cardsToDiscard.get(i) - i);
@@ -129,16 +137,18 @@ public class Game {
         Player player = players.get(playerIndexFromId(playerId));
 
         if (currentNegotiationStake > bidValue + currentBids.get(player))
-            throw new TooSmallBidException("Player cannot bid less than current stake. Player have to bid at least" +
+            throw new TooSmallBidException("Player cannot bid less than current stake. Player have to bid at least " +
                     (currentNegotiationStake - currentBids.get(player)) + ".");
 
         player.bid(bidValue);
 
-        if (currentNegotiationStake < bidValue)
-            currentNegotiationStake = bidValue;
+        if (currentNegotiationStake < currentBids.get(player) + bidValue)
+            currentNegotiationStake = currentBids.get(player) + bidValue;
 
-        currentBids.put(player, bidValue);
-        allGameBids.put(player, bidValue);
+        stake += bidValue;
+        currentBids.put(player, currentBids.get(player) + bidValue);
+        allGameBids.put(player, allGameBids.get(player) + bidValue);
+        bidden.put(player, true);
     }
 
     public int howMuchToBid(int playerId) {
@@ -147,10 +157,13 @@ public class Game {
         return currentNegotiationStake - currentBids.get(player);
     }
 
-    public void fold(int playerId) {
+    public void fold(int playerId) throws GameEndedByFoldingException {
         Player player = players.get(playerIndexFromId(playerId));
 
         folded.put(player, true);
+
+        if (countFoldedPlayers() + 1 == numberOfPlayers)
+            throw new GameEndedByFoldingException("Only one player not folded.");
     }
 
     public boolean hasFolded(int playerId) {
@@ -160,25 +173,50 @@ public class Game {
     }
 
     public boolean biddingOver() {
+        System.out.println(currentBids);
         for (Player player: players)
-            if (currentBids.get(player) < currentNegotiationStake && !folded.get(player))
+            if ((currentBids.get(player) < currentNegotiationStake && !folded.get(player)) || !bidden.get(player))
                 return false;
 
+        currentBids.replaceAll((p, v) -> 0);
+        bidden.replaceAll((p, v) -> false);
+        endNegotiation();
         return true;
     }
 
-    public void splitStakeBetweenWinners() {
+    public HashMap<Integer, Integer> splitStakeBetweenWinners() {
         HashMap<Integer, HandEvaluator.HandValues> handValues = evaluateHands();
         ArrayList<Integer> ranking = createRanking(handValues);
         ArrayList<Integer> winners = createWinnersList(ranking, handValues);
+        HashMap<Integer, Integer> playerPrizes = new HashMap<>();
 
-        for (Player player: players)
-            if (winners.contains(player.getId()))
-                player.getPrize(stake / winners.size());
+        if (countFoldedPlayers() + 1 == numberOfPlayers) {
+            for (Player player : players) {
+                if (!folded.get(player)) {
+                    player.getPrize(stake);
+                    playerPrizes.put(player.getId(), stake);
+                }
+            }
+        }
+        else {
+            for (Player player : players) {
+                if (winners.contains(player.getId()) && !folded.get(player)) {
+                    player.getPrize(stake / winners.size());
+                    playerPrizes.put(player.getId(), stake / winners.size());
+                }
+            }
+        }
 
         gameOn = false;
+        stake = 0;
+
         for (Integer id: playersToRemove)
             removePlayer(id);
+
+        for (Player player: players)
+            player.clearHand();
+
+        return playerPrizes;
     }
 
     public HashMap<Integer, HandEvaluator.HandValues> evaluateHands() {
@@ -199,6 +237,12 @@ public class Game {
             biddingOrder.add(players.get((dealerIndex + i + 1) % players.size()).getId());
 
         return biddingOrder;
+    }
+
+    public int getPlayerCredit(int playerId) {
+        Player player = players.get(playerIndexFromId(playerId));
+
+        return player.getCredit();
     }
 
     private void moveDealer() {
@@ -223,10 +267,14 @@ public class Game {
 
     private void dealCards() {
         int numberOfCards = 5;
+        ArrayList<Integer> biddingOrder = getBiddingOrder();
 
         for (int i = 0; i < numberOfCards; i++)
-            for (Player player: players)
+            for (Integer playerId: biddingOrder) {
+                Player player = players.get(playerIndexFromId(playerId));
                 player.receiveCard(deck.dealCard());
+            }
+
     }
 
     private int playerIndexFromId(int id) {
@@ -308,5 +356,15 @@ public class Game {
         }
 
         return winners;
+    }
+
+    private int countFoldedPlayers() {
+        int countFolded = 0;
+
+        for (Player player1: folded.keySet())
+            if(hasFolded(player1.getId()))
+                countFolded++;
+
+        return countFolded;
     }
 }

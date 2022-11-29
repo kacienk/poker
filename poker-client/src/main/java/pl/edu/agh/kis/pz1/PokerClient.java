@@ -1,19 +1,16 @@
 package pl.edu.agh.kis.pz1;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class PokerClient {
-    private static Selector selector = null;
     static int playerId = -1;
     static int gameId = -1;
+    static private String incorrectInput = "Incorrect input.";
 
     public static void main(String[] args) {
         String hostname = "localhost";
@@ -21,7 +18,7 @@ public class PokerClient {
 
         SocketChannel client = connect(hostname, port);
 
-        handleGame(client);
+        handleGames(client);
 
         disconnect(client);
     }
@@ -31,14 +28,10 @@ public class PokerClient {
 
         try {
             System.out.println("Starting client...");
-            selector = Selector.open();
 
             client = SocketChannel.open(new InetSocketAddress(hostname, port));
-            client.configureBlocking(false);
-            int ops = SelectionKey.OP_READ | SelectionKey.OP_WRITE;
-            client.register(selector, ops);
 
-            MessageParser parser = handleRead();
+            MessageParser parser = handleRead(client);
 
             if (parser.getActionType() == MessageParser.Action.DENY) {
                 System.out.println("Unable to establish connection.");
@@ -84,34 +77,27 @@ public class PokerClient {
         System.out.println("Server disconnected.");
     }
 
-    private static MessageParser handleRead() {
+    private static MessageParser handleRead(SocketChannel client) {
         MessageParser parser = new MessageParser();
 
         try {
-            selector.select();
-            Set<SelectionKey> selectedKeys = selector.selectedKeys();
-            Iterator<SelectionKey> it = selectedKeys.iterator();
+            String data;
 
-            while (it.hasNext()) {
-                SelectionKey key = it.next();
+            do {
+                ByteBuffer buffer = ByteBuffer.allocate(1024);
+                client.read(buffer);
 
-                if (key.isReadable()) {
-                    SocketChannel client = (SocketChannel) key.channel();
+                data = new String(buffer.array()).trim();
+            } while (data.isEmpty());
 
-                    ByteBuffer buffer = ByteBuffer.allocate(1024);
-                    client.read(buffer);
-
-                    String data = new String(buffer.array()).trim();
-                    parser.parse(data);
-                }
-
-                it.remove();
-            }
+            parser.parse(data);
 
         }
         catch (IOException e) {
             e.printStackTrace();
         }
+
+        // System.out.println("Received: " + parser);
 
         try {
             parser.getGameId();
@@ -141,32 +127,25 @@ public class PokerClient {
             buffer.put(message.getBytes());
             buffer.flip();
             int bytesWritten = client.write(buffer);
-            System.out.printf("Sending Message: %s\nbufforBytes: %d%n", message, bytesWritten);
+            System.out.printf("Sending Message: %s\nbufferBytes: %d%n", message, bytesWritten);
         }
         catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public static boolean handleGame(SocketChannel client) {
+    private static void handleGames(SocketChannel client) {
         MessageParser.Action lastAction = MessageParser.Action.ACCEPT;
-        Scanner scanner = new Scanner(System.in);
 
         while (true) {
-            MessageParser parser = handleRead();
+            MessageParser parser = handleRead(client);
 
             switch (parser.getActionType()) {
                 case START -> {
                     System.out.println("Game has started.");
                     lastAction = MessageParser.Action.START;
                 }
-                case HAND -> {
-                    if (lastAction != MessageParser.Action.HAND)
-                        System.out.println("Your hand:");
-
-                    System.out.println(parser.getActionParameters());
-                    lastAction = MessageParser.Action.HAND;
-                }
+                case HAND -> lastAction = receiveHand(parser, lastAction);
                 case EVAL -> {
                     System.out.println("Your hand value is: " + parser.getActionParameters());
                     lastAction = MessageParser.Action.EVAL;
@@ -185,85 +164,194 @@ public class PokerClient {
                     System.out.println("Current stake is: " + currentStake);
                     System.out.println("You must bid at least: " + howMuchToBid);
 
+                    boolean correctAction = false;
+
+                    while (!correctAction)
+                        correctAction = handleBidding(parser, client);
+
                     lastAction = MessageParser.Action.BID;
+                }
+                case DRAW -> {
+                    System.out.println("It is time for discarding cards.");
+                    boolean correctAction = false;
+
+                    while (!correctAction)
+                        correctAction = handleDrawing(client);
+
+                    lastAction = MessageParser.Action.DRAW;
                 }
                 case DISCONNECT -> {
                     serverDisconnected(client);
-                    return false;
+                    return;
                 }
-                case FOLD, ACCEPT -> { }
+                case CREDIT -> {
+                    System.out.println("Your current credit is: " + parser.getActionParameters() + ".");
+
+                    lastAction = MessageParser.Action.CREDIT;
+                }
+                case PRIZE -> handlePrize(parser);
                 case END -> {
-                    return gameEnded(client);
+                    if (!playerWantsToPlayOn(parser, client))
+                        return;
                 }
-            }
-
-            if (lastAction == MessageParser.Action.BID) {
-                System.out.println("What do you want to do?\n" +
-                        "b - bid.\n" +
-                        "c - check.\n" +
-                        "e - get evaluation.\n" +
-                        "f - fold.\n" +
-                        "h - get hand.\n");
-
-                String action = scanner.nextLine().trim();
-
-                switch (action) {
-                    case "b" -> {
-                        System.out.println("How much do you want to bid?");
-                        int bid = -1;
-                        while (bid == -1) {
-                            try {
-                                int scanned = scanner.nextInt();
-
-                                if (scanned >= 0) {
-                                    bid = scanned;
-                                } else
-                                    System.out.println("Incorrect value. Bid should be greater or equal 0.");
-                            } catch (InputMismatchException e) {
-                                System.out.println("Incorrect value. Your bid should be integer.");
-                            }
-                        }
-                        handleWrite(MessageParser.Action.BID, Integer.toString(bid), client);
-                    }
-                    case "c" -> {
-                        ArrayList<String> stakes = new ArrayList<>(Arrays.asList(parser.getActionParameters().split(" ")));
-
-                        handleWrite(MessageParser.Action.BID, stakes.get(1), client);
-                    }
-                    case "e" -> handleWrite(MessageParser.Action.EVAL, "", client);
-                    case "f" -> handleWrite(MessageParser.Action.FOLD, "", client);
-                    case "h" -> handleWrite(MessageParser.Action.HAND, "", client);
-                }
-
+                default -> System.out.println("Unknown command from server.");
             }
         }
     }
 
-    public static boolean gameEnded(SocketChannel client) {
+    private static int gameEnded(MessageParser parser, SocketChannel client) {
         Scanner scanner = new Scanner(System.in);
 
-        System.out.println("Game has ended.\n" +
-                "d - if you want to disconnect.\n" +
-                "p - if you want to play on.");
+        int playersMissing = Integer.parseInt(parser.getActionParameters());
+
+        if (playersMissing == 0)
+            System.out.println("Game ended!");
+        else {
+            System.out.println(playersMissing + " player(s) missing.");
+            System.out.println("Do you want to wait or disconnect?");
+        }
+
+        System.out.println("""
+                d - if you want to disconnect.
+                p - if you want to play on.""");
 
         String action = scanner.nextLine().trim();
 
-        if (action.equals("d")) {
-            disconnect(client);
-            return false;
+        if (action.equals("d"))
+            return 1;
+
+
+        if (action.equals("p")) {
+            handleWrite(MessageParser.Action.ACCEPT, "", client);
+            return 0;
         }
 
-        if (action.equals("p"))
-            return true;
-
-        System.out.println("Incorrect input.");
-        return gameEnded(client);
+        System.out.println(incorrectInput);
+        return -1;
     }
 
+    private static boolean handleBidding(MessageParser parser, SocketChannel client) {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("""
+                        What do you want to do?
+                        b - bid.
+                        c - check.
+                        e - get evaluation.
+                        f - fold.
+                        h - get hand.
+                        r - check your credit.
+                        """);
 
-    public static void clientNegotiation() {
+        String action = scanner.nextLine().trim();
 
+        switch (action) {
+            case "b" -> {
+                System.out.println("How much do you want to bid?");
+                int bid = -1;
+
+                while (bid == -1) {
+                    Scanner s = new Scanner(System.in);
+                    try {
+                        int scanned = s.nextInt();
+
+                        if (scanned >= 0) {
+                            bid = scanned;
+                        } else
+                            System.out.println("Incorrect value. Bid should be greater or equal 0.");
+                    } catch (InputMismatchException e) {
+                        System.out.println("Incorrect value. Your bid should be integer.");
+                    }
+
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(100);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                handleWrite(MessageParser.Action.BID, Integer.toString(bid), client);
+            }
+            case "c" -> {
+                ArrayList<String> stakes = new ArrayList<>(Arrays.asList(parser.getActionParameters().split(" ")));
+
+                handleWrite(MessageParser.Action.BID, stakes.get(1), client);
+            }
+            case "e" -> handleWrite(MessageParser.Action.EVAL, "", client);
+            case "f" -> handleWrite(MessageParser.Action.FOLD, "", client);
+            case "h" -> handleWrite(MessageParser.Action.HAND, "", client);
+            case "r" -> handleWrite(MessageParser.Action.CREDIT, "", client);
+            default -> {
+                System.out.println(incorrectInput);
+                return false;
+            }
+        }
+
+        return true;
     }
 
+    private static boolean handleDrawing(SocketChannel client) {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("""
+                        What do you want to do?
+                        d - discard cards.
+                        e - get evaluation.
+                        h - get hand.""");
 
+        String action = scanner.nextLine().trim();
+
+        switch (action) {
+            case "d" -> {
+                System.out.println("""
+                        Type in cards you want to discard in format:
+                        0 2 3
+                        That means you want to discard first, third, and fourth card.
+                        If you don't want to discard any card then just press enter.
+                        """);
+
+                String scanned = scanner.nextLine();
+
+                handleWrite(MessageParser.Action.DRAW, scanned, client);
+            }
+            case "e" -> handleWrite(MessageParser.Action.EVAL, "", client);
+            case "h" -> handleWrite(MessageParser.Action.HAND, "", client);
+            default -> {
+                System.out.println(incorrectInput);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void handlePrize(MessageParser parser) {
+        int prize = Integer.parseInt(parser.getActionParameters());
+
+        if (prize > 0) {
+            System.out.println("You won!");
+            System.out.println("Your prize is: " + prize);
+            return;
+        }
+
+        System.out.println("You did not win.");
+    }
+
+    private static MessageParser.Action receiveHand(MessageParser parser, MessageParser.Action lastAction) {
+        if (lastAction != MessageParser.Action.HAND)
+            System.out.println("Your hand:");
+
+        System.out.println(parser.getActionParameters());
+        return MessageParser.Action.HAND;
+    }
+
+    private static boolean playerWantsToPlayOn(MessageParser parser, SocketChannel client) {
+        // Stands for user input
+        // If -1 then input is incorrect
+        // If 1 then player wants to disconnect
+        // If 0 than user wants to play on
+        int action = -1;
+
+        while (action == -1)
+            action = gameEnded(parser, client);
+
+        return action != 1;
+    }
 }

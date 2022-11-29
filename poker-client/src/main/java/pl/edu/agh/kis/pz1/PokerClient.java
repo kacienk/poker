@@ -7,11 +7,19 @@ import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Class PokerClient is an application allowing connection with PokerServer and playing poker.
+ */
 public class PokerClient {
     static int playerId = -1;
     static int gameId = -1;
-    static private String incorrectInput = "Incorrect input.";
+    static private final String incorrectInput = "Incorrect input.";
 
+    /**
+     * Method main handles all client functionality.
+     *
+     * @param args Arguments passed to the client.
+     */
     public static void main(String[] args) {
         String hostname = "localhost";
         int port = 31415;

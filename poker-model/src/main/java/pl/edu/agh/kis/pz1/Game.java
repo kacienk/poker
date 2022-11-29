@@ -38,15 +38,12 @@ public class Game {
         return id;
     }
 
-    public ArrayList<Integer> getPlayerIds() {
-        ArrayList<Integer> ids = new ArrayList<>();
-
-        for (Player player: players)
-            ids.add(player.getId());
-
-        return ids;
-    }
-
+    /**
+     *  Adds new player to the game.
+     *
+     * @param id New player ID.
+     * @throws IncorrectNumbersOfPlayersException See {@link IncorrectNumbersOfPlayersException}
+     */
     public void newPlayer(Integer id) throws IncorrectNumbersOfPlayersException {
         if (players.size() >= numberOfPlayers)
             throw new IncorrectNumbersOfPlayersException("No other player can join this game.");
@@ -62,12 +59,19 @@ public class Game {
             dealerId = id;
     }
 
+    /**
+     * Removes player from the game.
+     * If game is running waits for the game to end.
+     *
+     * @param id ID of the player to be removed.
+     */
     public void removePlayer(Integer id) {
         Player player = players.get(playerIndexFromId(id));
 
         if (gameOn) {
             playersToRemove.add(id);
             folded.put(player, true);
+            return;
         }
 
         currentBids.remove(player);
@@ -76,10 +80,22 @@ public class Game {
         players.remove(playerIndexFromId(id));
     }
 
+    /**
+     * Checks if the number of players is correct.
+     *
+     * @return <code>true</code> if correct, <code>false</code> otherwise.
+     */
     public boolean canBegin() {
         return players.size() == numberOfPlayers;
     }
 
+    /**
+     * Sets up new game.
+     * Resets all the values like folded, bidden, currentBids, etc.
+     *
+     * @throws IncorrectNumbersOfPlayersException See {@link IncorrectNumbersOfPlayersException}
+     * @throws NotEnoughCreditException See {@link NotEnoughCreditException}
+     */
     public void newGame() throws IncorrectNumbersOfPlayersException, NotEnoughCreditException {
         if (players.size() < numberOfPlayers)
             throw new IncorrectNumbersOfPlayersException("There is too few players to start a game.");
@@ -92,6 +108,7 @@ public class Game {
         folded.replaceAll((p, v) -> false);
         bidden.replaceAll((p, v) -> false);
         deck.newDeck();
+        deck.shuffle();
         dealCards();
     }
 
@@ -104,6 +121,14 @@ public class Game {
         return playerHands;
     }
 
+    /**
+     * Method handles discarding and drawing cards.
+     *
+     * @param playerId Player that want to draw a card.
+     * @param cardsToDiscard ArrayList of indices of the cards that player wants to discard.
+     * @throws IncorrectNumberOfCardsException See {@link IncorrectNumberOfCardsException}
+     * @throws NoSuchCardException See {@link NoSuchCardException}
+     */
     public void draw(int playerId, ArrayList<Integer> cardsToDiscard) throws IncorrectNumberOfCardsException, NoSuchCardException {
         if (cardsToDiscard.size() > 4)
             throw new IncorrectNumberOfCardsException("Player cannot discard more than 4 cards.");
@@ -122,17 +147,18 @@ public class Game {
             player.receiveCard(deck.dealCard());
     }
 
-    public void endNegotiation() {
-        for (Player player: players)
-            currentBids.put(player, 0);
-
-        currentNegotiationStake = 0;
-    }
-
     public int getCurrentNegotiationStake() {
         return currentNegotiationStake;
     }
 
+    /**
+     * Method handles bidding performed by player.
+     *
+     * @param playerId ID of the player that wants to bid.
+     * @param bidValue Value of credits that player wants to bid.
+     * @throws NotEnoughCreditException See {@link NotEnoughCreditException}
+     * @throws TooSmallBidException See {@link TooSmallBidException}
+     */
     public void bid(int playerId, int bidValue) throws NotEnoughCreditException, TooSmallBidException {
         Player player = players.get(playerIndexFromId(playerId));
 
@@ -151,12 +177,24 @@ public class Game {
         bidden.put(player, true);
     }
 
+    /**
+     * Returns how much credits player needs to bid to even up the current stake.
+     *
+     * @param playerId ID of the player that want to perform this action.
+     * @return credits value.
+     */
     public int howMuchToBid(int playerId) {
         Player player = players.get(playerIndexFromId(playerId));
 
         return currentNegotiationStake - currentBids.get(player);
     }
 
+    /**
+     * Method handles folding performed by player.
+     *
+     * @param playerId ID of the player that want to fold.
+     * @throws GameEndedByFoldingException See {@link GameEndedByFoldingException}
+     */
     public void fold(int playerId) throws GameEndedByFoldingException {
         Player player = players.get(playerIndexFromId(playerId));
 
@@ -166,14 +204,24 @@ public class Game {
             throw new GameEndedByFoldingException("Only one player not folded.");
     }
 
+    /**
+     * Check if player has already folded.
+     *
+     * @param playerId ID of the player to be checked.
+     * @return <code>true</code> if folded, <code>false</code> otherwise.
+     */
     public boolean hasFolded(int playerId) {
         Player player = players.get(playerIndexFromId(playerId));
 
         return folded.get(player);
     }
 
+    /**
+     * Checks if bidding is over.
+     *
+     * @return <code>true</code> if over, <code>false</code> otherwise.
+     */
     public boolean biddingOver() {
-        System.out.println(currentBids);
         for (Player player: players)
             if ((currentBids.get(player) < currentNegotiationStake && !folded.get(player)) || !bidden.get(player))
                 return false;
@@ -184,6 +232,11 @@ public class Game {
         return true;
     }
 
+    /**
+     * Method handles giving winners their prize.
+     *
+     * @return Returns hash map where key is playerId and value the prize he won.
+     */
     public HashMap<Integer, Integer> splitStakeBetweenWinners() {
         HashMap<Integer, HandEvaluator.HandValues> handValues = evaluateHands();
         ArrayList<Integer> ranking = createRanking(handValues);
@@ -219,6 +272,11 @@ public class Game {
         return playerPrizes;
     }
 
+    /**
+     * Evaluates players hands.
+     *
+     * @return HashMap map where key is playerId and value the evaluation.
+     */
     public HashMap<Integer, HandEvaluator.HandValues> evaluateHands() {
         HashMap<Integer, HandEvaluator.HandValues> handValues = new HashMap<>();
         HandEvaluator handEvaluator = new HandEvaluator();
@@ -229,6 +287,11 @@ public class Game {
         return handValues;
     }
 
+    /**
+     * Creates and returns bidding order that depends on the dealer.
+     *
+     * @return Bidding order.
+     */
     public ArrayList<Integer> getBiddingOrder() {
         ArrayList<Integer> biddingOrder = new ArrayList<>();
         int dealerIndex = playerIndexFromId(dealerId);
@@ -367,4 +430,12 @@ public class Game {
 
         return countFolded;
     }
+
+    private void endNegotiation() {
+        for (Player player: players)
+            currentBids.put(player, 0);
+
+        currentNegotiationStake = 0;
+    }
+
 }

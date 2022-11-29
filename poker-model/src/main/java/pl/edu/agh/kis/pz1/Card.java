@@ -4,7 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Card  {
+    /**
+     * Card ranks.
+     */
     public enum Rank{ DEUCE, THREE, FOUR, FIVE, SIX,SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE }
+
+    /**
+     * Card suits.
+     */
     public enum Suit { CLUBS, DIAMONDS, HEARTS, SPADES }
 
     private final Rank rank;
@@ -32,6 +39,11 @@ public class Card  {
         return rank + " of " + suit;
     }
 
+    /**
+     * Returns copy of statically created protoDeck.
+     *
+     * @return Deck.
+     */
     public static ArrayList<Card> newDeck() {
         return new ArrayList<>(protoDeck);
     }

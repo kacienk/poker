@@ -3,6 +3,9 @@ package pl.edu.agh.kis.pz1;
 import java.util.ArrayList;
 
 public class HandEvaluator {
+    /**
+     * All possible values of the hand.
+     */
     public enum HandValues { HIGHCARD("High card"), PAIR ("Pair"), TWOPAIR("Two pair"), THREEOFAKIND("Three of a kind"),
         STRAIGHT("Straight"), FLUSH("Flush"), FULLHOUSE("Full house"), FOUROFAKIND("Four of a kind"),
         STRAIGHTFLUSH("Straight flush");
@@ -18,6 +21,12 @@ public class HandEvaluator {
         }
     }
 
+    /**
+     * Evaluates given hand.
+     *
+     * @param hand Hand to evaluate.
+     * @return Value of the hand.
+     */
     public HandValues evaluate(ArrayList<Card> hand) {
         // Returns type of the highest hand value
         CardRankComparator cardRankComparator = new CardRankComparator();
@@ -43,6 +52,15 @@ public class HandEvaluator {
         return HandValues.HIGHCARD;
     }
 
+    /**
+     * Settles up given handValue draws. Function works ONLY when draw has occurred.
+     * Returns a negative integer, zero, or a positive integer as hand1 is worse, they are dead equal, hand2 is worse.
+     *
+     * @param hand1 First hand.
+     * @param hand2 Second hand.
+     * @param handValue Type of hand value that was drawn.
+     * @return Integer with evaluation.
+     */
     public int settleDraw(ArrayList<Card> hand1, ArrayList<Card> hand2, HandValues handValue) {
         // Settles up given handValue draws. Function works ONLY when draw has occurred.
         // Returns a negative integer, zero, or a positive integer \

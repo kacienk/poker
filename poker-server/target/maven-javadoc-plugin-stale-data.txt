@@ -1,0 +1,53 @@
+@options
+@packages
+-classpath
+'/Users/kacper/.m2/repository/pl/edu/agh/kis/pz1/poker-common/1.0-SNAPSHOT/poker-common-1.0-SNAPSHOT.jar:/Users/kacper/.m2/repository/pl/edu/agh/kis/pz1/poker-model/1.0-SNAPSHOT/poker-model-1.0-SNAPSHOT.jar'
+-encoding
+'UTF-8'
+-private
+-source
+'17'
+-sourcepath
+'/Users/kacper/Semestr3/JavaCodes/poker/poker-server/src/main/java'
+-author
+-bottom
+'Copyright &#169; 2022. All rights reserved.'
+-charset
+'UTF-8'
+-d
+'/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs'
+-docencoding
+'UTF-8'
+-doctitle
+'poker-server 1.0-SNAPSHOT API'
+-use
+-version
+-windowtitle
+'poker-server 1.0-SNAPSHOT API'
+pl.edu.agh.kis.pz1
+pl.edu.agh.kis.pz1.exceptions
+/Users/kacper/.m2/repository/pl/edu/agh/kis/pz1/poker-common/1.0-SNAPSHOT/poker-common-1.0-SNAPSHOT.jar = 1669752734979
+/Users/kacper/.m2/repository/pl/edu/agh/kis/pz1/poker-model/1.0-SNAPSHOT/poker-model-1.0-SNAPSHOT.jar = 1669752736282
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/src/main/java = 1668949642877
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/constant-values.html = 1669764438062
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/tag-search-index.js = 1669764438210
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/overview-tree.html = 1669764438156
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/module-search-index.js = 1669764438208
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/index.html = 1669764438161
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/package-search-index.js = 1669764438208
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/jquery-ui.overrides.css = 1669764438302
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/serialized-form.html = 1669764438090
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/index-all.html = 1669764438269
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/allpackages-index.html = 1669764438208
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/member-search-index.js = 1669764438209
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/copy.svg = 1669764438293
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/script.js = 1669764438293
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/stylesheet.css = 1669764438291
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/search-page.js = 1669764438298
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/overview-summary.html = 1669764438278
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/help-doc.html = 1669764438285
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/element-list = 1669764437975
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/search.html = 1669764438275
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/allclasses-index.html = 1669764438204
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/type-search-index.js = 1669764438209
+/Users/kacper/Semestr3/JavaCodes/poker/poker-server/target/site/apidocs/search.js = 1669764438296

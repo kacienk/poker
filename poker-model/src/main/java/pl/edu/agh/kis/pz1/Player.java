@@ -18,14 +18,29 @@ public class Player {
         this.credit = credit;
     }
 
+    /**
+     * Adds card to hand.
+     *
+     * @param card Card to be added.
+     */
     public void receiveCard(Card card) {
         hand.add(card);
     }
 
+    /**
+     * Removes card from hand.
+     * @param index Index of the card to be removed.
+     */
     public void discardCard(int index) {
         hand.remove(index);
     }
 
+    /**
+     * Handles player bidding.
+     *
+     * @param bidValue Value of credits that player wants to bid.
+     * @throws NotEnoughCreditException See {@link  pl.edu.agh.kis.pz1.exceptions.NoSuchCardException}
+     */
     public void bid(int bidValue) throws NotEnoughCreditException {
         if (bidValue > credit)
             throw new NotEnoughCreditException("Player has less credit than they want to bid. Player credit:" + credit);
@@ -33,6 +48,11 @@ public class Player {
         credit -= bidValue;
     }
 
+    /**
+     * Method handles winning prize by the player.
+     *
+     * @param prizeValue Value of the prize won.
+     */
     public void getPrize(int prizeValue) {
         credit += prizeValue;
     }
@@ -41,6 +61,9 @@ public class Player {
 
     public int getId() { return id; }
 
+    /**
+     * Clears players hand.
+     */
     public void clearHand() { hand.clear(); }
 
     public int getCredit() { return credit; }

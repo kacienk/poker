@@ -4,22 +4,64 @@ import java.lang.invoke.CallSite;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+/**
+ * Class parsing messages sent between server and client.
+ */
 public class MessageParser {
+    /**
+     * Arguments parsed from messages.
+     */
     private final ArrayList<String> args = new ArrayList<>();
+
+    /**
+     * Actions used in communication.
+     * ACCEPT - accepted request received from sender.
+     * DENY - denied request received from sender.
+     * BID - bid request.
+     * FOLD - fold request sent by the client.
+     * HAND - client want to get hand or server sends hand.
+     * START - server announcing start of the new game.
+     * DISCONNECT - server or player disconnected.
+     * EVAL - client want to get evaluation or server sends evaluation.
+     * END - server announcing that game has ended.
+     * DRAW - draw request.
+     * CREDIT - client want to get credit or server sends credit.
+     * PRIZE - information about the prize from the server.
+     */
     public enum Action {ACCEPT, DENY, BID, FOLD, HAND, START, DISCONNECT, EVAL, END, DRAW, CREDIT, PRIZE}
 
     MessageParser() {
 
     }
+
+    /**
+     * Parses message while created.
+     *
+     * @param message Message to parse.
+     */
     MessageParser(String message) {
         parse(message);
     }
 
+    /**
+     * Parses message.
+     *
+     * @param message Message to parse.
+     */
     public void parse(String message) {
         args.clear();
         args.addAll(Arrays.asList(message.split("/")));
     }
 
+    /**
+     * Parses arguments to the message format.
+     *
+     * @param gameId ID of the game related to messsage.
+     * @param playerId ID of the player receiving or sending message.
+     * @param action Type of action.
+     * @param actionParameters Parameters for the action.
+     * @return
+     */
     public String parse(int gameId, int playerId, Action action, String actionParameters) {
         args.clear();
 
@@ -80,7 +122,7 @@ public class MessageParser {
         }
     }
 
-    public String getMessage() {
+    private String getMessage() {
         String message = "";
         StringBuilder stringBuilder = new StringBuilder(message);
 

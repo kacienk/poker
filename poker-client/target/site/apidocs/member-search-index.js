@@ -1,0 +1,1 @@
+memberSearchIndex = [{"p":"pl.edu.agh.kis.pz1","c":"PokerClient","l":"main(String[])","u":"main(java.lang.String[])"},{"p":"pl.edu.agh.kis.pz1","c":"PokerClient","l":"PokerClient()","u":"%3Cinit%3E()"}];updateSearchResults();

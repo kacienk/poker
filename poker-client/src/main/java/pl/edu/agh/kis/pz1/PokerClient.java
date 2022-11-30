@@ -9,11 +9,13 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Class PokerClient is an application allowing connection with PokerServer and playing poker.
+ *
+ * @author Kacper Cienkosz
  */
 public class PokerClient {
     static int playerId = -1;
     static int gameId = -1;
-    static private final String incorrectInput = "Incorrect input.";
+    static private final String INCORRECT_INPUT = "Incorrect input.";
 
     /**
      * Method main handles all client functionality.
@@ -135,7 +137,7 @@ public class PokerClient {
             buffer.put(message.getBytes());
             buffer.flip();
             int bytesWritten = client.write(buffer);
-            System.out.printf("Sending Message: %s\nbufferBytes: %d%n", message, bytesWritten);
+            // System.out.printf("Sending Message: %s\nbufferBytes: %d%n", message, bytesWritten);
         }
         catch (IOException e) {
             e.printStackTrace();
@@ -234,7 +236,7 @@ public class PokerClient {
             return 0;
         }
 
-        System.out.println(incorrectInput);
+        System.out.println(INCORRECT_INPUT);
         return -1;
     }
 
@@ -288,7 +290,7 @@ public class PokerClient {
             case "h" -> handleWrite(MessageParser.Action.HAND, "", client);
             case "r" -> handleWrite(MessageParser.Action.CREDIT, "", client);
             default -> {
-                System.out.println(incorrectInput);
+                System.out.println(INCORRECT_INPUT);
                 return false;
             }
         }
@@ -322,7 +324,7 @@ public class PokerClient {
             case "e" -> handleWrite(MessageParser.Action.EVAL, "", client);
             case "h" -> handleWrite(MessageParser.Action.HAND, "", client);
             default -> {
-                System.out.println(incorrectInput);
+                System.out.println(INCORRECT_INPUT);
                 return false;
             }
         }

@@ -5,6 +5,11 @@ import pl.edu.agh.kis.pz1.exceptions.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+/**
+ * Class implementing poker game.
+ *
+ * @author Kacper Cienkosz
+ */
 public class Game {
     private final ArrayList<Player> players = new ArrayList<>();
     private final HashMap<Player, Integer> currentBids = new HashMap<>();
@@ -223,8 +228,9 @@ public class Game {
      */
     public boolean biddingOver() {
         for (Player player: players)
-            if ((currentBids.get(player) < currentNegotiationStake && !folded.get(player)) || !bidden.get(player))
+            if ((currentBids.get(player) < currentNegotiationStake || !bidden.get(player)) && !folded.get(player))
                 return false;
+
 
         currentBids.replaceAll((p, v) -> 0);
         bidden.replaceAll((p, v) -> false);
@@ -351,24 +357,8 @@ public class Game {
     private ArrayList<Integer> createRanking(HashMap<Integer, HandEvaluator.HandValues> handValues) {
         // Create ranking of players' hand values storing their ids. Descending order.
 
-        ArrayList<Integer> ranking = new ArrayList<>();
+        ArrayList<Integer> ranking = initializeRanking(handValues);
         HandEvaluator handEvaluator = new HandEvaluator();
-
-        for (Integer key: handValues.keySet()) {
-            if (ranking.size() == 0) {
-                ranking.add(key);
-                continue;
-            }
-
-            for (int i = 0; i < ranking.size(); i++) {
-                Integer playerToCompareKey = ranking.get(i);
-
-                if (handValues.get(playerToCompareKey).compareTo(handValues.get(key)) < 0) {
-                    ranking.add(i, key);
-                    break;
-                }
-            }
-        }
 
         Integer leaderId = ranking.get(0);
         Player leadingPlayer = players.get(playerIndexFromId(leaderId));
@@ -384,7 +374,6 @@ public class Game {
 
                 // If currently checked players hand is at least as good as current leader.
                 if (handEvaluator.settleDraw(leadingPlayer.getHand(), currentlyCheckedPlayer.getHand(), leaderHandValue) <= 0) {
-
                     // Make currently checked player the leader.
                     ranking.add(0, ranking.remove(i));
 
@@ -401,7 +390,12 @@ public class Game {
         // Return number of draws that were irresolvable.
         HandEvaluator handEvaluator = new HandEvaluator();
         ArrayList<Integer> winners = new ArrayList<>();
-        winners.add(ranking.get(0));
+
+        for (Integer id : ranking)
+            if (!hasFolded(id)) {
+                winners.add(id);
+                break;
+            }
 
         for (int i = 0; i < ranking.size() - 1; i++)
         {
@@ -438,4 +432,27 @@ public class Game {
         currentNegotiationStake = 0;
     }
 
+    private ArrayList<Integer> initializeRanking(HashMap<Integer, HandEvaluator.HandValues> handValues) {
+        ArrayList<Integer> ranking = new ArrayList<>();
+
+        for (Integer key: handValues.keySet()) {
+            if (ranking.size() == 0) {
+                ranking.add(key);
+                continue;
+            }
+
+            for (int i = 0; i < ranking.size(); i++) {
+                Integer playerToCompareKey = ranking.get(i);
+
+                if (handValues.get(playerToCompareKey).compareTo(handValues.get(key)) < 0)
+                    if (!ranking.contains(key))
+                        ranking.add(i, key);
+            }
+
+            if (!ranking.contains(key))
+                ranking.add(key);
+        }
+
+        return ranking;
+    }
 }

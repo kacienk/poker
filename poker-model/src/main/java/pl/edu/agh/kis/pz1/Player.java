@@ -4,6 +4,11 @@ import pl.edu.agh.kis.pz1.exceptions.NotEnoughCreditException;
 
 import java.util.ArrayList;
 
+/**
+ * Class representing player in the poker game.
+ *
+ * @author Kacper Cienkosz
+ */
 public class Player {
     private final ArrayList<Card> hand = new ArrayList<>();
     private final Integer id;
@@ -57,7 +62,10 @@ public class Player {
         credit += prizeValue;
     }
 
-    public ArrayList<Card> getHand() { return hand; }
+    public ArrayList<Card> getHand() {
+        hand.sort(new CardRankComparator());
+        return hand;
+    }
 
     public int getId() { return id; }
 

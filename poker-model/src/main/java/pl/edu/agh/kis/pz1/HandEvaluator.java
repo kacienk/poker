@@ -2,6 +2,11 @@ package pl.edu.agh.kis.pz1;
 
 import java.util.ArrayList;
 
+/**
+ * Class providing hand evaluating to the game.
+ *
+ * @author Kacper Cienkosz
+ */
 public class HandEvaluator {
     /**
      * All possible values of the hand.
@@ -184,7 +189,7 @@ public class HandEvaluator {
     private int hasPair(ArrayList<Card> hand) {
         // Returns index of the first card of the pair. If not found returns -1.
         for (int i = 0; i < hand.size() - 1; i++)
-            if (hand.get(i).rank().ordinal() ==  hand.get(i + 1).rank().ordinal())
+            if (hand.get(i).rank().ordinal() == hand.get(i + 1).rank().ordinal())
                 return i;
 
         return -1;
@@ -235,11 +240,13 @@ public class HandEvaluator {
         ArrayList<Card> handCopy1 = new ArrayList<>(hand1);
         ArrayList<Card> handCopy2 = new ArrayList<>(hand2);
 
-        if (checkPairDraw(handCopy1, handCopy2) != 0)
-            return checkPairDraw(handCopy1, handCopy2);
+        int checkFirstPair = checkPairDraw(handCopy1, handCopy2);
+        if (checkFirstPair != 0)
+            return checkFirstPair;
 
-        if (checkPairDraw(handCopy1, handCopy2) != 0)
-            return checkPairDraw(handCopy1, handCopy2);
+        int checkSecondPair = checkPairDraw(handCopy1, handCopy2);
+        if (checkSecondPair != 0)
+            return checkSecondPair;
 
         return handCopy1.get(0).rank().compareTo(handCopy2.get(0).rank());
     }
@@ -251,8 +258,9 @@ public class HandEvaluator {
         ArrayList<Card> handCopy1 = new ArrayList<>(hand1);
         ArrayList<Card> handCopy2 = new ArrayList<>(hand2);
 
-        if (checkPairDraw(handCopy1, handCopy2) != 0)
-            return checkPairDraw(handCopy1, handCopy2);
+        int checkPair = checkPairDraw(handCopy1, handCopy2);
+        if (checkPair != 0)
+            return checkPair;
 
         return settleHighCardDraw(handCopy1, handCopy2);
     }

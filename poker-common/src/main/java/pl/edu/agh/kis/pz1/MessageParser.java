@@ -6,6 +6,8 @@ import java.util.Arrays;
 
 /**
  * Class parsing messages sent between server and client.
+ *
+ * @author Kacper Cienkosz
  */
 public class MessageParser {
     /**

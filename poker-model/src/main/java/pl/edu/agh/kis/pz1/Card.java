@@ -3,6 +3,11 @@ package pl.edu.agh.kis.pz1;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Card representation in poker game.
+ *
+ * @author Kacper Cienkosz
+ */
 public class Card  {
     /**
      * Card ranks.

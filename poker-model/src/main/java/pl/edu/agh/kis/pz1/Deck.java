@@ -4,6 +4,8 @@ import java.util.Collections;
 
 /**
  * Class Deck is a contains a deck and provides necessary methods for it.
+ *
+ * @author Kacper Cienkosz
  */
 public class Deck {
     /**

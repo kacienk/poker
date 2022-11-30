@@ -34,7 +34,11 @@ public class PokerServer {
      */
     private static int numberOfPlayers = 3;
     private static final int ANTE = 20;
-
+    /**
+     * Actual game running on the server.
+     * Please see {@link  pl.edu.agh.kis.pz1.Game } for information about Game class.
+     */
+    private static Game game = null;
     /**
      * ID of the next client when they connect to the server.
      */
@@ -64,7 +68,8 @@ public class PokerServer {
             System.out.println("No argument provided so numberOfPlayers is set to default value: 3");
         }
 
-        Game game = new Game(1, numberOfPlayers, ANTE);
+        System.out.println("Number of players: " + numberOfPlayers);
+        game = new Game(1, numberOfPlayers, ANTE);
 
         try (ServerSocketChannel serverSocketChannel = ServerSocketChannel.open()){
             selector = Selector.open();
@@ -75,12 +80,12 @@ public class PokerServer {
             int ops = serverSocketChannel.validOps();
             serverSocketChannel.register(selector, ops, null);
 
-            waitForConnections(serverSocketChannel, game);
+            waitForConnections(serverSocketChannel);
 
             boolean gameShouldStart = true;
 
             while (gameShouldStart)
-                gameShouldStart = carryOutGame(serverSocketChannel, game);
+                gameShouldStart = carryOutGame(serverSocketChannel);
 
         }
         catch (IOException e) {
@@ -96,12 +101,11 @@ public class PokerServer {
      * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
      *
      * @param serverSocketChannel ServerSocketChannel that is responsible for accepting connections.
-     * @param game Game.
      * @return Returns ID of the client that has connected. If <code>-1</code> than it means that connection has not been accepted.
      * @throws IOException Something goes wrong while accepting connection or while receiving or sending message.
      * For further information please see {@link java.nio.channels.ServerSocketChannel}, {@link java.nio.channels.SocketChannel}.
      */
-    private static int handleAccept(ServerSocketChannel serverSocketChannel, Game game) throws IOException {
+    private static int handleAccept(ServerSocketChannel serverSocketChannel) throws IOException {
         System.out.println("Connection Accepted...");
 
         SocketChannel client = serverSocketChannel.accept();
@@ -203,7 +207,7 @@ public class PokerServer {
      * @throws IOException Something goes wrong while accepting connection or while receiving or sending message.
      * For further information please see {@link java.nio.channels.ServerSocketChannel}, {@link java.nio.channels.SocketChannel}.
      */
-    private static void waitForConnections(ServerSocketChannel serverSocketChannel, Game game) throws IOException {
+    private static void waitForConnections(ServerSocketChannel serverSocketChannel) throws IOException {
         while (true) {
             selector.select();
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
@@ -213,9 +217,9 @@ public class PokerServer {
                 SelectionKey key = it.next();
 
                 if (key.isAcceptable())
-                    handleAccept(serverSocketChannel, game);
+                    handleAccept(serverSocketChannel);
                 else if (key.isReadable())
-                    handleReadableKeyInWaitingForConnections(key, game);
+                    handleReadableKeyInWaitingForConnections(key);
 
                 it.remove();
             }
@@ -232,9 +236,9 @@ public class PokerServer {
      *
      * @param client SocketChannel of client that sent the message.
      * @param parser MessageParser containing message from client.
-     * @param game Poker game.
+     *
      */
-    private static void disconnect(SocketChannel client, MessageParser parser, Game game) {
+    private static void disconnect(SocketChannel client, MessageParser parser) {
         System.out.println("Player " + parser.getPlayerId() + " disconnected from game " + parser.getGameId());
         game.removePlayer(parser.getPlayerId());
 
@@ -252,7 +256,7 @@ public class PokerServer {
      * @param playerId ID of the player with which connection was broken.
      * @param message Message to the client explaining why connection was broken.
      */
-    private static void serverDisconnect(int playerId, String message, Game game) {
+    private static void serverDisconnect(int playerId, String message) {
         handleWrite(game.getId(), playerId, MessageParser.Action.DISCONNECT, message);
     }
 
@@ -266,7 +270,7 @@ public class PokerServer {
      * @throws InterruptedException Appears if thread was interrupted while executing <code>TimeUnit.SECONDS.sleep()</code>
      * or <code>TimeUnit.MILLISECONDS.sleep()</code>.
      */
-    private static boolean carryOutGame(ServerSocketChannel serverSocketChannel, Game game) throws IOException, InterruptedException {
+    private static boolean carryOutGame(ServerSocketChannel serverSocketChannel) throws IOException, InterruptedException {
         try {
             game.newGame();
             TimeUnit.SECONDS.sleep(1);
@@ -277,7 +281,7 @@ public class PokerServer {
             System.out.println(e.getMessage());
 
             for (Integer key: clients.keySet())
-                serverDisconnect(key, e.getMessage(), game);
+                serverDisconnect(key, e.getMessage());
 
             return false;
         }
@@ -285,28 +289,28 @@ public class PokerServer {
         for (Integer key: clients.keySet())
             handleWrite(game.getId(), key, MessageParser.Action.START, "");
 
-        sendPlayersHands(game);
-        sendPlayerEvaluations(game);
+        sendPlayersHands();
+        sendPlayerEvaluations();
 
         try {
-            handleBiddingProcess(game);
+            handleBiddingProcess();
 
-            handleDrawingProcess(game);
+            handleDrawingProcess();
 
-            handleBiddingProcess(game);
+            handleBiddingProcess();
         }
         catch (GameEndedByFoldingException ignored) {
 
         }
 
-        return handleEndgameProcess(serverSocketChannel, game);
+        return handleEndgameProcess(serverSocketChannel);
     }
 
     /**
      * Method handles sending all players their hands by sending message with action HAND.
      * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
      */
-    private static void sendPlayersHands(Game game) {
+    private static void sendPlayersHands() {
         HashMap<Integer, ArrayList<Card>> playerHands = game.getPlayerHands();
 
         for (Integer key: playerHands.keySet())
@@ -320,7 +324,7 @@ public class PokerServer {
      *
      * @param id ID of the player that hand should be sent to.
      */
-    private static void sendPlayersHands(Integer id, Game game) {
+    private static void sendPlayersHands(Integer id) {
         HashMap<Integer, ArrayList<Card>> playerHands = game.getPlayerHands();
 
         for (Card card: playerHands.get(id))
@@ -331,7 +335,7 @@ public class PokerServer {
      * Method handles sending all players evaluations of their hands by sending message with action EVAL.
      * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
      */
-    private static void sendPlayerEvaluations(Game game) {
+    private static void sendPlayerEvaluations() {
         HashMap<Integer, HandEvaluator.HandValues> handEvaluations = game.evaluateHands();
 
         for (Integer key: handEvaluations.keySet())
@@ -344,7 +348,7 @@ public class PokerServer {
      *
      * @param id ID of the player that hand evaluation should be sent to.
      */
-    private static void sendPlayerEvaluations(Integer id, Game game) {
+    private static void sendPlayerEvaluations(Integer id) {
         HashMap<Integer, HandEvaluator.HandValues> handEvaluations = game.evaluateHands();
 
         handleWrite(game.getId(), id, MessageParser.Action.EVAL, String.valueOf(handEvaluations.get(id)));
@@ -357,7 +361,7 @@ public class PokerServer {
      * @param id ID of the player that request should be sent to.
      * @param alreadySentBiddingRequest HashMap containing information if bidding request was already sent to players.
      */
-    private static void sendBiddingRequest(Integer id, HashMap<Integer, Boolean> alreadySentBiddingRequest, Game game) {
+    private static void sendBiddingRequest(Integer id, HashMap<Integer, Boolean> alreadySentBiddingRequest) {
         if (alreadySentBiddingRequest.get(id) && !game.hasFolded(id))
             return;
 
@@ -379,7 +383,7 @@ public class PokerServer {
      *
      * @param id ID of the player that request should be sent to.
      */
-    private static void sendBiddingRequest(Integer id, Game game) {
+    private static void sendBiddingRequest(Integer id) {
         if (!game.hasFolded(id)) {
             String stakes = game.getCurrentNegotiationStake() +
                     " " +
@@ -395,7 +399,7 @@ public class PokerServer {
      * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
      * @throws GameEndedByFoldingException See {@link pl.edu.agh.kis.pz1.exceptions.GameEndedByFoldingException}
      */
-    private static void handleBiddingProcess(Game game) throws IOException, GameEndedByFoldingException {
+    private static void handleBiddingProcess() throws IOException, GameEndedByFoldingException {
         HashMap<Integer, Boolean> alreadySentBiddingRequest = new HashMap<>();
         for (Integer key: clients.keySet())
             alreadySentBiddingRequest.put(key, false);
@@ -411,7 +415,7 @@ public class PokerServer {
                 continue;
             }
 
-            sendBiddingRequest(bidderId, alreadySentBiddingRequest, game);
+            sendBiddingRequest(bidderId, alreadySentBiddingRequest);
 
             int keys = selector.select();
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
@@ -420,7 +424,7 @@ public class PokerServer {
             while (it.hasNext()) {
                 SelectionKey key = it.next();
 
-                bidderIndex = handleKeyInBiddingProcess(key, bidderIndex, biddingOrder, alreadySentBiddingRequest, game);
+                bidderIndex = handleKeyInBiddingProcess(key, bidderIndex, biddingOrder, alreadySentBiddingRequest);
 
                 it.remove();
             }
@@ -433,7 +437,7 @@ public class PokerServer {
      * @param parser MessageParser containing message from client.
      * @return <code>true</code> when bid was accepted, <code>false</code> otherwise.
      */
-    private static boolean handleOneBid(MessageParser parser, Game game) {
+    private static boolean handleOneBid(MessageParser parser) {
         int playerId = parser.getPlayerId();
         int bid = 0;
 
@@ -449,8 +453,8 @@ public class PokerServer {
             return true;
         } catch (TooSmallBidException | NotEnoughCreditException e) {
             handleWrite(game.getId(), playerId, MessageParser.Action.DENY, e.getMessage());
-            sendPlayerCredit(playerId, game);
-            sendBiddingRequest(playerId, game);
+            sendPlayerCredit(playerId);
+            sendBiddingRequest(playerId);
             return false;
         }
     }
@@ -462,7 +466,7 @@ public class PokerServer {
      * @param id ID of the player that request should be sent to.
      * @param alreadySentDrawRequest HashMap containing information if draw request was already sent to the players.
      */
-    private static void sendDrawRequest(Integer id, HashMap<Integer, Boolean> alreadySentDrawRequest, Game game) {
+    private static void sendDrawRequest(Integer id, HashMap<Integer, Boolean> alreadySentDrawRequest) {
         if (alreadySentDrawRequest.get(id))
             return;
 
@@ -478,7 +482,7 @@ public class PokerServer {
      *
      * @param id ID of the player that request should be sent to.
      */
-    private static void sendDrawRequest(Integer id, Game game) {
+    private static void sendDrawRequest(Integer id) {
         if (!game.hasFolded(id))
             handleWrite(game.getId(), id, MessageParser.Action.DRAW, "");
     }
@@ -491,7 +495,7 @@ public class PokerServer {
      * @throws NoSuchCardException See {@link pl.edu.agh.kis.pz1.exceptions.NoSuchCardException}
      * @throws IncorrectNumberOfCardsException See {@link pl.edu.agh.kis.pz1.exceptions.IncorrectNumberOfCardsException}
      */
-    private static void handleDraw(MessageParser parser, Game game) throws NoSuchCardException, IncorrectNumberOfCardsException {
+    private static void handleDraw(MessageParser parser) throws NoSuchCardException, IncorrectNumberOfCardsException {
         ArrayList<Integer> cardsToDiscard = new ArrayList<>();
 
         String playerRequest = parser.getActionParameters();
@@ -512,7 +516,7 @@ public class PokerServer {
      *
      * @throws IOException Something went wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
      */
-    private static void handleDrawingProcess(Game game) throws IOException {
+    private static void handleDrawingProcess() throws IOException {
         HashMap<Integer, Boolean> alreadySentDrawRequest = new HashMap<>();
         for (Integer key: clients.keySet())
             alreadySentDrawRequest.put(key, false);
@@ -528,7 +532,7 @@ public class PokerServer {
                 continue;
             }
 
-            sendDrawRequest(id, alreadySentDrawRequest, game);
+            sendDrawRequest(id, alreadySentDrawRequest);
 
             int keys = selector.select();
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
@@ -554,7 +558,7 @@ public class PokerServer {
      * @param id ID of the player that request should be sent to.
      * @throws GameEndedByFoldingException See {@link pl.edu.agh.kis.pz1.exceptions.GameEndedByFoldingException}
      */
-    private static void handleFold(Integer id, Game game) throws GameEndedByFoldingException {
+    private static void handleFold(Integer id) throws GameEndedByFoldingException {
         game.fold(id);
     }
 
@@ -564,14 +568,14 @@ public class PokerServer {
      *
      * @param playerId ID of the player that request should be sent to.
      */
-    private static void sendPlayerCredit(int playerId, Game game) {
+    private static void sendPlayerCredit(int playerId) {
         handleWrite(game.getId(), playerId, MessageParser.Action.CREDIT ,String.valueOf(game.getPlayerCredit(playerId)));
     }
 
     /**
      * Method handles player prizing after the game have finished
      */
-    private static void handlePrizingProcess(Game game) {
+    private static void handlePrizingProcess() {
         HashMap<Integer, Integer> playerPrizes = game.splitStakeBetweenWinners();
 
         for (Integer key: clients.keySet()) {
@@ -582,7 +586,7 @@ public class PokerServer {
                 handleWrite(game.getId(), key, MessageParser.Action.PRIZE, String.valueOf(0));
             }
 
-            sendPlayerCredit(key, game);
+            sendPlayerCredit(key);
         }
     }
 
@@ -596,14 +600,14 @@ public class PokerServer {
      * @throws InterruptedException Appears if thread was interrupted while executing <code>TimeUnit.SECONDS.sleep()</code>
      * or <code>TimeUnit.MILLISECONDS.sleep()</code>.
      */
-    private static boolean handleEndgameProcess(ServerSocketChannel serverSocketChannel, Game game) throws IOException, InterruptedException {
-        handlePrizingProcess(game);
+    private static boolean handleEndgameProcess(ServerSocketChannel serverSocketChannel) throws IOException, InterruptedException {
+        handlePrizingProcess();
 
         Set<Integer> playersWantToPlay = new HashSet<>();
         HashMap<Integer, Boolean> acceptedLastRequest = new HashMap<>();
         int playersMissing = 0;
 
-        sendEnd(playersMissing, acceptedLastRequest, game);
+        sendEnd(playersMissing, acceptedLastRequest);
 
         do {
             int keys = selector.select();
@@ -638,7 +642,7 @@ public class PokerServer {
      * @param playersMissing Number of players needed to start new game.
      * @param acceptedLastRequest HashMap containing information if players accepted last end request.
      */
-    private static void sendEnd(int playersMissing, HashMap<Integer, Boolean> acceptedLastRequest, Game game) {
+    private static void sendEnd(int playersMissing, HashMap<Integer, Boolean> acceptedLastRequest) {
         for (Integer key: clients.keySet()) {
             if (acceptedLastRequest.containsKey(key) && acceptedLastRequest.get(key)) {
                 acceptedLastRequest.put(key, false);
@@ -657,12 +661,12 @@ public class PokerServer {
      * @param key SelectionKey given by Selector.
      * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
      */
-    private static void handleReadableKeyInWaitingForConnections(SelectionKey key, Game game) throws IOException {
+    private static void handleReadableKeyInWaitingForConnections(SelectionKey key) throws IOException {
         try {
             MessageParser parser = handleRead(key);
 
             if (parser.getActionType() == MessageParser.Action.DISCONNECT)
-                disconnect((SocketChannel) key.channel(), parser, game);
+                disconnect((SocketChannel) key.channel(), parser);
         } catch (EmptyMessageException ignored) {
 
         }
@@ -697,35 +701,35 @@ public class PokerServer {
      * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
      */
     private static int handleKeyInBiddingProcess(SelectionKey key, int bidderIndex, ArrayList<Integer> biddingOrder,
-                                                  HashMap<Integer, Boolean> sentBiddingRequest, Game game) throws GameEndedByFoldingException, IOException {
+                                                  HashMap<Integer, Boolean> sentBiddingRequest) throws GameEndedByFoldingException, IOException {
         if (key.isReadable()) {
             try {
                 MessageParser parser = handleRead(key);
 
                 switch (parser.getActionType()) {
-                    case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser, game);
+                    case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
                     case HAND -> {
-                        sendPlayersHands(parser.getPlayerId(), game);
-                        sendBiddingRequest(parser.getPlayerId(), game);
+                        sendPlayersHands(parser.getPlayerId());
+                        sendBiddingRequest(parser.getPlayerId());
                     }
                     case FOLD -> {
-                        handleFold(parser.getPlayerId(), game);
+                        handleFold(parser.getPlayerId());
 
                         bidderIndex = nextBidder(bidderIndex, biddingOrder, sentBiddingRequest);
                     }
                     case EVAL -> {
-                        sendPlayerEvaluations(parser.getPlayerId(), game);
-                        sendBiddingRequest(parser.getPlayerId(), game);
+                        sendPlayerEvaluations(parser.getPlayerId());
+                        sendBiddingRequest(parser.getPlayerId());
                     }
                     case BID -> {
-                        boolean biddenProperly = handleOneBid(parser, game);
+                        boolean biddenProperly = handleOneBid(parser);
 
                         if (biddenProperly)
                             bidderIndex = nextBidder(bidderIndex, biddingOrder, sentBiddingRequest);
                     }
                     case CREDIT -> {
-                        sendPlayerCredit(parser.getPlayerId(), game);
-                        sendBiddingRequest(parser.getPlayerId(), game);
+                        sendPlayerCredit(parser.getPlayerId());
+                        sendBiddingRequest(parser.getPlayerId());
                     }
                     default -> System.out.println("Unexpected action.");
                 }
@@ -744,20 +748,20 @@ public class PokerServer {
      * @param drawerIndex Index of current drawer.
      * @return Index of next drawer.
      */
-    private static int handleDrawRequest(MessageParser parser, int drawerIndex, Game game) {
+    private static int handleDrawRequest(MessageParser parser, int drawerIndex) {
         try {
-            handleDraw(parser, game);
-            sendPlayersHands(parser.getPlayerId(), game);
-            sendPlayerEvaluations(parser.getPlayerId(), game);
+            handleDraw(parser);
+            sendPlayersHands(parser.getPlayerId());
+            sendPlayerEvaluations(parser.getPlayerId());
             drawerIndex++;
         }
         catch (NoSuchCardException | IncorrectNumberOfCardsException e) {
             handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, e.getMessage());
-            sendDrawRequest(parser.getPlayerId(), game);
+            sendDrawRequest(parser.getPlayerId());
         } catch (NumberFormatException e) {
             String message = "Incorrect input" + parser.getActionParameters() + ".";
             handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, message);
-            sendDrawRequest(parser.getPlayerId(), game);
+            sendDrawRequest(parser.getPlayerId());
         }
 
         return drawerIndex;
@@ -774,20 +778,20 @@ public class PokerServer {
      * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
      */
     private static int readableKeyInEndgameProcess(SelectionKey key, int playersMissing, Set<Integer> playersWantToPlay,
-                                                   HashMap<Integer, Boolean> acceptedLastRequest, Game game) throws IOException {
+                                                   HashMap<Integer, Boolean> acceptedLastRequest) throws IOException {
         try {
             MessageParser parser = handleRead(key);
 
             if (parser.getActionType() == MessageParser.Action.DISCONNECT) {
                 playersMissing++;
 
-                disconnect((SocketChannel) key.channel(), parser, game);
+                disconnect((SocketChannel) key.channel(), parser);
                 clients.remove(parser.getPlayerId());
 
                 playersWantToPlay.remove(parser.getPlayerId());
                 acceptedLastRequest.remove(parser.getPlayerId());
 
-                sendEnd(playersMissing, acceptedLastRequest, game);
+                sendEnd(playersMissing, acceptedLastRequest);
             }
 
             if (parser.getActionType() == MessageParser.Action.ACCEPT) {

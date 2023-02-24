@@ -62,18 +62,22 @@ public class HandEvaluator {
     }
 
     /**
-     * Settles up given handValue draws. Function works ONLY when draw has occurred.
+     * Compares two hands.
      * Returns a negative integer, zero, or a positive integer as hand1 is worse, they are dead equal, hand2 is worse.
      *
      * @param hand1 First hand.
      * @param hand2 Second hand.
-     * @param handValue Type of hand value that was drawn.
      * @return Integer with evaluation.
      */
-    public static int settleDraw(ArrayList<Card> hand1, ArrayList<Card> hand2, HandValues handValue) {
+    public static int compareHands(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         CardRankComparator cardRankComparator = new CardRankComparator();
         hand1.sort(cardRankComparator);
         hand2.sort(cardRankComparator);
+
+        if(evaluate(hand1).compareTo(evaluate(hand2)) != 0)
+            return evaluate(hand1).compareTo(evaluate(hand2));
+
+        HandValues handValue = evaluate(hand1);
 
         switch (handValue) {
             case STRAIGHTFLUSH, FLUSH, STRAIGHT -> { return settleStraightOrFlushDraw(hand1, hand2); }

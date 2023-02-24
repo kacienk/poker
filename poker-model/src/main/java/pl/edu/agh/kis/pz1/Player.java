@@ -12,27 +12,19 @@ import java.util.ArrayList;
 public class Player {
     private final ArrayList<Card> hand = new ArrayList<>();
     private final Integer id;
-    private int currentBid;
-    private int allGameBid;
-    private boolean folded;
-    private boolean bidden;
+    private int currentBid = 0 ;
+    private int allGameBid = 0;
+    private boolean folded = false;
+    private boolean bidden = false;
     private int credit = 1000;
 
     Player(int id) {
         this.id = id;
-        currentBid = 0;
-        allGameBid = 0;
-        folded = false;
-        bidden = false;
     }
 
     Player(int id, int credit) {
         this.id = id;
         this.credit = credit;
-        currentBid = 0;
-        allGameBid = 0;
-        folded = false;
-        bidden = false;
     }
 
     /**
@@ -72,7 +64,7 @@ public class Player {
      *
      * @param prizeValue Value of the prize won.
      */
-    public void getPrize(int prizeValue) {
+    public void receivePrize(int prizeValue) {
         credit += prizeValue;
     }
 
@@ -85,14 +77,14 @@ public class Player {
         return HandEvaluator.evaluate(getHand());
     }
 
-    public int getId() { return id; }
-
     /**
      * Clears players hand.
      */
     public void clearHand() { hand.clear(); }
 
     public int getCredit() { return credit; }
+
+    public int getId() { return id; }
 
     @Override
     public int hashCode() {

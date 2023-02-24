@@ -4,6 +4,8 @@ import java.util.Comparator;
 
 /**
  * Comparator comparing card first by rank.
+ *
+ * @author Kacper Cienkosz
  */
 public class CardRankComparator implements Comparator<Card>{
     public int compare(Card card1, Card card2) {

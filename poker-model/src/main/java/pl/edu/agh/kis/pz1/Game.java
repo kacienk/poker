@@ -3,7 +3,6 @@ package pl.edu.agh.kis.pz1;
 import pl.edu.agh.kis.pz1.exceptions.*;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 
 /**
@@ -34,10 +33,6 @@ public class Game {
         this.id = id;
         this.numberOfPlayers = numberOfPlayers;
         this.ante = ante;
-    }
-
-    public int getId() {
-        return id;
     }
 
     /**
@@ -141,10 +136,6 @@ public class Game {
             player.receiveCard(deck.dealCard());
     }
 
-    public int getCurrentNegotiationStake() {
-        return currentNegotiationStake;
-    }
-
     /**
      * Method handles bidding performed by player.
      *
@@ -186,6 +177,9 @@ public class Game {
      * @throws GameEndedByFoldingException See {@link GameEndedByFoldingException}
      */
     public void fold(int playerId) throws GameEndedByFoldingException {
+        if (hasFolded(playerId))
+            return;
+
         players.get(playerId).setFolded(true);
         foldedPlayers++;
 
@@ -204,7 +198,9 @@ public class Game {
     }
 
     /**
-     * Checks if bidding is over.
+     * Method tries to finalize bidding process.
+     * If bidding process can be finalized, then the method resets players bidden flags
+     * and sets current negotiation stake to 0.
      *
      * @return <code>true</code> if over, <code>false</code> otherwise.
      */
@@ -218,7 +214,7 @@ public class Game {
             player.setBidden(false);
         }
 
-        endNegotiation();
+        currentNegotiationStake = 0;
         return true;
     }
 
@@ -228,26 +224,13 @@ public class Game {
      * @return Returns hash map where key is playerId and value the prize he won.
      */
     public HashMap<Integer, Integer> splitStakeBetweenWinners() {
-        HashMap<Integer, HandEvaluator.HandValues> handValues = evaluateHands();
-        ArrayList<Integer> ranking = createRanking(handValues);
-        ArrayList<Integer> winners = createWinnersList(ranking, handValues);
+        ArrayList<Integer> winners = createWinnersList();
         HashMap<Integer, Integer> playerPrizes = new HashMap<>();
+        int prize = stake / winners.size();
 
-        if (foldedPlayers + 1 == numberOfPlayers) {
-            for (Player player : players.values()) {
-                if (!player.isFolded()) {
-                    player.getPrize(stake);
-                    playerPrizes.put(player.getId(), stake);
-                }
-            }
-        }
-        else {
-            for (Player player : players.values()) {
-                if (winners.contains(player.getId()) && !player.isFolded()) {
-                    player.getPrize(stake / winners.size());
-                    playerPrizes.put(player.getId(), stake / winners.size());
-                }
-            }
+        for (Integer playerId : winners) {
+            players.get(playerId).receivePrize(prize);
+            playerPrizes.put(playerId, prize);
         }
 
         gameOn = false;
@@ -267,13 +250,17 @@ public class Game {
      *
      * @return HashMap map where key is playerId and value the evaluation.
      */
-    public HashMap<Integer, HandEvaluator.HandValues> evaluateHands() {
+    public HashMap<Integer, HandEvaluator.HandValues> getPlayerHandsEvaluations() {
         HashMap<Integer, HandEvaluator.HandValues> handValues = new HashMap<>();
 
         for (Player player: players.values())
             handValues.put(player.getId(), player.getHandEvaluation());
 
         return handValues;
+    }
+
+    public int getId() {
+        return id;
     }
 
     /**
@@ -287,6 +274,10 @@ public class Game {
 
     public int getPlayerCredit(int playerId) {
         return players.get(playerId).getCredit();
+    }
+
+    public int getCurrentNegotiationStake() {
+        return currentNegotiationStake;
     }
 
     private void moveDealer() {
@@ -317,40 +308,17 @@ public class Game {
 
     }
 
-    private ArrayList<Integer> createRanking(HashMap<Integer, HandEvaluator.HandValues> handValues) {
+    private ArrayList<Integer> createRanking() {
         // Create ranking of players' hand values storing their ids. Descending order.
-
-        ArrayList<Integer> ranking = initializeRanking(handValues);
-
-        Integer leaderId = ranking.get(0);
-        Player leadingPlayer = players.get(leaderId);
-        HandEvaluator.HandValues leaderHandValue = handValues.get(leaderId);
-
-        // Order ranking by settling draws between hands with the same hand value.
-        for (int i = 1; i < ranking.size(); i++) {
-            Integer currentlyCheckedId = ranking.get(i);
-            Player currentlyCheckedPlayer = players.get(currentlyCheckedId);
-            HandEvaluator.HandValues currentlyCheckedHandValue = handValues.get(currentlyCheckedId);
-
-            if (leaderHandValue == currentlyCheckedHandValue)
-
-                // If currently checked players hand is at least as good as current leader.
-                if (HandEvaluator.settleDraw(leadingPlayer.getHand(), currentlyCheckedPlayer.getHand(), leaderHandValue) <= 0) {
-                    // Make currently checked player the leader.
-                    ranking.add(0, ranking.remove(i));
-
-                    leaderId = ranking.get(0);
-                    leadingPlayer = players.get(leaderId);
-                    leaderHandValue = handValues.get(leaderId);
-                }
-        }
+        ArrayList<Integer> ranking = new ArrayList<>(players.keySet());
+        ranking.sort((player1, player2) -> -HandEvaluator.compareHands(players.get(player1).getHand(), players.get(player2).getHand()));
 
         return ranking;
     }
 
-    private ArrayList<Integer> createWinnersList(ArrayList<Integer> ranking, HashMap<Integer, HandEvaluator.HandValues> handValues) {
-        // Return number of draws that were irresolvable.
+    private ArrayList<Integer> createWinnersList() {
         ArrayList<Integer> winners = new ArrayList<>();
+        ArrayList<Integer> ranking = createRanking();
 
         for (Integer id : ranking)
             if (!hasFolded(id)) {
@@ -358,35 +326,17 @@ public class Game {
                 break;
             }
 
-        for (int i = 0; i < ranking.size() - 1; i++)
-        {
-            if (handValues.get(ranking.get(i + 1)) == handValues.get(ranking.get(i))) {
-                ArrayList<Card> hand1 = players.get(ranking.get(i)).getHand();
-                ArrayList<Card> hand2 = players.get(ranking.get(i + 1)).getHand();
+        for (int i = 0; i < ranking.size() - 1; i++) {
+            ArrayList<Card> hand1 = players.get(ranking.get(i)).getHand();
+            ArrayList<Card> hand2 = players.get(ranking.get(i + 1)).getHand();
 
-                if (HandEvaluator.settleDraw(hand1, hand2, handValues.get(ranking.get(i))) == 0)
-                    winners.add(ranking.get(i + 1));
-                else
-                    return winners;
-            }
-            else
-                return winners;
+            if (HandEvaluator.compareHands(hand1, hand2) != 0)
+                break;
+
+            if (!hasFolded(ranking.get(i + 1)))
+                winners.add(ranking.get(i + 1));
         }
 
         return winners;
-    }
-
-    private void endNegotiation() {
-        for (Player player: players.values())
-            player.setCurrentBid(0);
-
-        currentNegotiationStake = 0;
-    }
-
-    private ArrayList<Integer> initializeRanking(HashMap<Integer, HandEvaluator.HandValues> handValues) {
-        ArrayList<Integer> ranking = new ArrayList<>(handValues.keySet());
-        ranking.sort(Comparator.comparing(handValues::get, Comparator.reverseOrder()));
-
-        return ranking;
     }
 }

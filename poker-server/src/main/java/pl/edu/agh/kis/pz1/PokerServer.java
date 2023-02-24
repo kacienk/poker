@@ -336,7 +336,7 @@ public class PokerServer {
      * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
      */
     private static void sendPlayerEvaluations() {
-        HashMap<Integer, HandEvaluator.HandValues> handEvaluations = game.evaluateHands();
+        HashMap<Integer, HandEvaluator.HandValues> handEvaluations = game.getPlayerHandsEvaluations();
 
         for (Integer key: handEvaluations.keySet())
             handleWrite(game.getId(), key, MessageParser.Action.EVAL, String.valueOf(handEvaluations.get(key)));
@@ -349,7 +349,7 @@ public class PokerServer {
      * @param id ID of the player that hand evaluation should be sent to.
      */
     private static void sendPlayerEvaluations(Integer id) {
-        HashMap<Integer, HandEvaluator.HandValues> handEvaluations = game.evaluateHands();
+        HashMap<Integer, HandEvaluator.HandValues> handEvaluations = game.getPlayerHandsEvaluations();
 
         handleWrite(game.getId(), id, MessageParser.Action.EVAL, String.valueOf(handEvaluations.get(id)));
     }

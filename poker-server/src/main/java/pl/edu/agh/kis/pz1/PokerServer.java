@@ -57,7 +57,7 @@ public class PokerServer {
             int customNumberOfPlayers = Integer.parseInt(args[0]);
 
             if(customNumberOfPlayers > 4 || customNumberOfPlayers < 2)
-                System.out.println("Argument is not between 2 and 4 so numberOfPlayers is set to default value: 3");
+                System.out.println("Argument is not between 2 and 4, thus numberOfPlayers is set to default value: 3");
             else
                 numberOfPlayers = customNumberOfPlayers;
         }

@@ -8,6 +8,10 @@ import java.util.ArrayList;
  * @author Kacper Cienkosz
  */
 public class HandEvaluator {
+    private HandEvaluator() {
+
+    }
+
     /**
      * All possible values of the hand.
      */
@@ -32,7 +36,7 @@ public class HandEvaluator {
      * @param hand Hand to evaluate.
      * @return Value of the hand.
      */
-    public HandValues evaluate(ArrayList<Card> hand) {
+    public static HandValues evaluate(ArrayList<Card> hand) {
         // Returns type of the highest hand value
         CardRankComparator cardRankComparator = new CardRankComparator();
         hand.sort(cardRankComparator);
@@ -66,11 +70,7 @@ public class HandEvaluator {
      * @param handValue Type of hand value that was drawn.
      * @return Integer with evaluation.
      */
-    public int settleDraw(ArrayList<Card> hand1, ArrayList<Card> hand2, HandValues handValue) {
-        // Settles up given handValue draws. Function works ONLY when draw has occurred.
-        // Returns a negative integer, zero, or a positive integer \
-        // as hand1 is worse, they are dead equal, hand2 is worse.
-
+    public static int settleDraw(ArrayList<Card> hand1, ArrayList<Card> hand2, HandValues handValue) {
         CardRankComparator cardRankComparator = new CardRankComparator();
         hand1.sort(cardRankComparator);
         hand2.sort(cardRankComparator);
@@ -89,14 +89,14 @@ public class HandEvaluator {
         return 0;
     }
 
-    private int hasStraightFlush(ArrayList<Card> hand) {
+    private static int hasStraightFlush(ArrayList<Card> hand) {
         if (hasStraight(hand) == 0 && hasFlush(hand) == 0)
             return 0;
 
         return -1;
     }
 
-    private int hasFourOfAKind(ArrayList<Card> hand) {
+    private static int hasFourOfAKind(ArrayList<Card> hand) {
         // Returns index of the first card of the four of a kind. If not found returns -1.
         for (int i = 0; i < hand.size() - 3; i++)
             if (hand.get(i).rank().ordinal() ==  hand.get(i + 1).rank().ordinal())
@@ -107,7 +107,7 @@ public class HandEvaluator {
         return -1;
     }
 
-    private int hasFullHouse(ArrayList<Card> hand) {
+    private static int hasFullHouse(ArrayList<Card> hand) {
         // Returns index of the first card of the three of a kind in full house. If not found returns -1.
         // Creating hand copy for the sake of simplicity. This way some cards can be safely removed from the hand;
 
@@ -127,7 +127,7 @@ public class HandEvaluator {
         return indexOfThreeOfAKind;
     }
 
-    private int hasFlush(ArrayList<Card> hand) {
+    private static int hasFlush(ArrayList<Card> hand) {
         // Returns index of the first card of the flush. If not found returns -1.
         // Creating hand copy for sake of simplicity. That way hand is always sorted by card ranks.
         ArrayList<Card> handCopy = new ArrayList<>(hand);
@@ -142,7 +142,7 @@ public class HandEvaluator {
         return 0;
     }
 
-    private int hasStraight(ArrayList<Card> hand) {
+    private static int hasStraight(ArrayList<Card> hand) {
         // Returns index of the first card of the straight. If not found returns -1.
 
         // Ace can be treated as the lowest or the highest value card.
@@ -162,7 +162,7 @@ public class HandEvaluator {
         return 0;
     }
 
-    private int hasThreeOfAKind(ArrayList<Card> hand) {
+    private static int hasThreeOfAKind(ArrayList<Card> hand) {
         // Returns index of the first card of the three of a kind. If not found returns -1.
         for (int i = 0; i < hand.size() - 2; i++)
             if (hand.get(i).rank().ordinal() ==  hand.get(i + 1).rank().ordinal())
@@ -172,7 +172,7 @@ public class HandEvaluator {
         return -1;
     }
 
-    private int hasTwoPair(ArrayList<Card> hand) {
+    private static int hasTwoPair(ArrayList<Card> hand) {
         // Returns index of the first card of the two pair. If not found returns -1.
         int firstPairIndex = hasPair(hand);
 
@@ -186,7 +186,7 @@ public class HandEvaluator {
         return -1;
     }
 
-    private int hasPair(ArrayList<Card> hand) {
+    private static int hasPair(ArrayList<Card> hand) {
         // Returns index of the first card of the pair. If not found returns -1.
         for (int i = 0; i < hand.size() - 1; i++)
             if (hand.get(i).rank().ordinal() == hand.get(i + 1).rank().ordinal())
@@ -195,11 +195,11 @@ public class HandEvaluator {
         return -1;
     }
 
-    private int settleStraightOrFlushDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
+    private static int settleStraightOrFlushDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         return hand1.get(0).rank().compareTo(hand2.get(0).rank());
     }
 
-    private int settleFourOfAKindDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
+    private static int settleFourOfAKindDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         // Settles a draw between two hands with four of a kind (FOaK)
         int indexOfFOaK1 = hasFourOfAKind(hand1);
         int indexOfFOaK2 = hasFourOfAKind(hand2);
@@ -210,7 +210,7 @@ public class HandEvaluator {
         return fourOfAKindRank1.compareTo(fourOfAKindRank2);
     }
 
-    private int settleFullHouseDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
+    private static int settleFullHouseDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         // Settles a draw between two hands with full house.
         // indexOfThreeOfAKind stands for index of the first card of three of a kind in a full house
         int indexOfThreeOfAKind1 = hasFullHouse(hand1);
@@ -222,7 +222,7 @@ public class HandEvaluator {
         return highCardRank1.compareTo(highCardRank2);
     }
 
-    private int settleThreeOfAKindDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
+    private static int settleThreeOfAKindDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         // Settles a draw between two hands with three of a kind.
         int indexOfThreeOfAKind1 = hasThreeOfAKind(hand1);
         int indexOfThreeOfAKind2 = hasThreeOfAKind(hand2);
@@ -233,7 +233,7 @@ public class HandEvaluator {
         return highCardRank1.compareTo(highCardRank2);
     }
 
-    private int settleTwoPairDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
+    private static int settleTwoPairDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         // Settles a draw between two hands with two pairs.
 
         // Creating hands copy for sake of simplicity. That way is cards can be safely removed from hands.
@@ -251,7 +251,7 @@ public class HandEvaluator {
         return handCopy1.get(0).rank().compareTo(handCopy2.get(0).rank());
     }
 
-    private int settlePairDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
+    private static int settlePairDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         // Settles a draw between two hands with a pair.
 
         // Creating hands copy for sake of simplicity. That way is cards can be safely removed from hands.
@@ -265,7 +265,7 @@ public class HandEvaluator {
         return settleHighCardDraw(handCopy1, handCopy2);
     }
 
-    private int checkPairDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
+    private static int checkPairDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         // Checks relation between the highest pairs in hands.
 
         // WARNING: this method removes cards form hands.
@@ -285,7 +285,7 @@ public class HandEvaluator {
         return pairRank1.compareTo(pairRank2);
     }
 
-    private int settleHighCardDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
+    private static int settleHighCardDraw(ArrayList<Card> hand1, ArrayList<Card> hand2) {
         // Settles a draw between two hands with only high card.
 
         // Since hands are sorted comparing cards at corresponding indices and finding those that don't match works.

@@ -3,6 +3,7 @@ package pl.edu.agh.kis.pz1;
 import pl.edu.agh.kis.pz1.exceptions.*;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 
 /**
@@ -11,22 +12,18 @@ import java.util.HashMap;
  * @author Kacper Cienkosz
  */
 public class Game {
-    private final ArrayList<Player> players = new ArrayList<>();
-    private final HashMap<Player, Integer> currentBids = new HashMap<>();
-    private final HashMap<Player, Integer> allGameBids = new HashMap<>();
-    private final HashMap<Player, Boolean> folded = new HashMap<>();
-    private final HashMap<Player, Boolean> bidden = new HashMap<>();
+    //private final ArrayList<Player> players = new ArrayList<>();
+    private final HashMap<Integer, Player> players = new HashMap<>();
     private final ArrayList<Integer> playersToRemove = new ArrayList<>();
+    private final ArrayList<Integer> biddingOrder = new ArrayList<>();
     private final Deck deck = new Deck();
     private final int numberOfPlayers;
     private final int id;
     private int ante = 5;
     private int stake = 0;
     private int currentNegotiationStake = 0;
+    private int foldedPlayers = 0;
     private boolean gameOn = false;
-
-    private int dealerId = -1;
-
 
     Game(int id, int numberOfPlayers) {
         this.id = id;
@@ -46,43 +43,28 @@ public class Game {
     /**
      *  Adds new player to the game.
      *
-     * @param id New player ID.
+     * @param playerId New player ID.
      * @throws IncorrectNumbersOfPlayersException See {@link IncorrectNumbersOfPlayersException}
      */
-    public void newPlayer(Integer id) throws IncorrectNumbersOfPlayersException {
+    public void newPlayer(Integer playerId) throws IncorrectNumbersOfPlayersException {
         if (players.size() >= numberOfPlayers)
             throw new IncorrectNumbersOfPlayersException("No other player can join this game.");
 
-        Player player = new Player(id);
-        players.add(player);
-        currentBids.put(player, 0);
-        allGameBids.put(player, 0);
-        folded.put(player, false);
-        bidden.put(player, false);
-
-        if (dealerId == -1)
-            dealerId = id;
+        players.put(playerId, new Player(playerId));
+        biddingOrder.add(playerId);
     }
 
     /**
      * Removes player from the game.
      * If game is running waits for the game to end.
      *
-     * @param id ID of the player to be removed.
+     * @param playerId ID of the player to be removed.
      */
-    public void removePlayer(Integer id) {
-        Player player = players.get(playerIndexFromId(id));
+    public void removePlayer(Integer playerId) throws GameEndedByFoldingException {
+        if (gameOn)
+            fold(playerId);
 
-        if (gameOn) {
-            playersToRemove.add(id);
-            folded.put(player, true);
-            return;
-        }
-
-        currentBids.remove(player);
-        allGameBids.remove(player);
-        folded.remove(player);
-        players.remove(playerIndexFromId(id));
+        playersToRemove.add(playerId);
     }
 
     /**
@@ -96,7 +78,7 @@ public class Game {
 
     /**
      * Sets up new game.
-     * Resets all the values like folded, bidden, currentBids, etc.
+     * Resets all the values describing player state in the game like folded, bidden, currentBid, etc.
      *
      * @throws IncorrectNumbersOfPlayersException See {@link IncorrectNumbersOfPlayersException}
      * @throws NotEnoughCreditException See {@link NotEnoughCreditException}
@@ -106,21 +88,28 @@ public class Game {
             throw new IncorrectNumbersOfPlayersException("There is too few players to start a game.");
 
         takeAnte();
-
         gameOn = true;
-
         moveDealer();
-        folded.replaceAll((p, v) -> false);
-        bidden.replaceAll((p, v) -> false);
+
+        for (Player player: players.values()) {
+            player.setBidden(false);
+            player.setFolded(false);
+        }
+
         deck.newDeck();
         deck.shuffle();
         dealCards();
     }
 
+    /**
+     * Method returning HashMap where player IDs are keys and their hands i.e. ArrayList containing 5 cards.
+     *
+     * @return HashMap with players hands.
+     */
     public HashMap<Integer, ArrayList<Card>> getPlayerHands() {
         HashMap<Integer, ArrayList<Card>> playerHands = new HashMap<>();
 
-        for (Player player: players)
+        for (Player player: players.values())
             playerHands.put(player.getId(), player.getHand());
 
         return playerHands;
@@ -138,7 +127,7 @@ public class Game {
         if (cardsToDiscard.size() > 4)
             throw new IncorrectNumberOfCardsException("Player cannot discard more than 4 cards.");
 
-        Player player = players.get(playerIndexFromId(playerId));
+        Player player = players.get(playerId);
         cardsToDiscard.sort(Integer::compareTo);
 
         for(Integer card: cardsToDiscard)
@@ -165,21 +154,19 @@ public class Game {
      * @throws TooSmallBidException See {@link TooSmallBidException}
      */
     public void bid(int playerId, int bidValue) throws NotEnoughCreditException, TooSmallBidException {
-        Player player = players.get(playerIndexFromId(playerId));
+        Player player = players.get(playerId);
 
-        if (currentNegotiationStake > bidValue + currentBids.get(player))
+        if (currentNegotiationStake > bidValue + player.getCurrentBid())
             throw new TooSmallBidException("Player cannot bid less than current stake. Player have to bid at least " +
-                    (currentNegotiationStake - currentBids.get(player)) + ".");
+                    (currentNegotiationStake - player.getCurrentBid()) + ".");
 
         player.bid(bidValue);
+        player.setBidden(true);
 
-        if (currentNegotiationStake < currentBids.get(player) + bidValue)
-            currentNegotiationStake = currentBids.get(player) + bidValue;
+        if (currentNegotiationStake < player.getCurrentBid() + bidValue)
+            currentNegotiationStake = player.getCurrentBid() + bidValue;
 
         stake += bidValue;
-        currentBids.put(player, currentBids.get(player) + bidValue);
-        allGameBids.put(player, allGameBids.get(player) + bidValue);
-        bidden.put(player, true);
     }
 
     /**
@@ -189,9 +176,7 @@ public class Game {
      * @return credits value.
      */
     public int howMuchToBid(int playerId) {
-        Player player = players.get(playerIndexFromId(playerId));
-
-        return currentNegotiationStake - currentBids.get(player);
+        return currentNegotiationStake - players.get(playerId).getCurrentBid();
     }
 
     /**
@@ -201,11 +186,10 @@ public class Game {
      * @throws GameEndedByFoldingException See {@link GameEndedByFoldingException}
      */
     public void fold(int playerId) throws GameEndedByFoldingException {
-        Player player = players.get(playerIndexFromId(playerId));
+        players.get(playerId).setFolded(true);
+        foldedPlayers++;
 
-        folded.put(player, true);
-
-        if (countFoldedPlayers() + 1 == numberOfPlayers)
+        if (foldedPlayers + 1 == numberOfPlayers)
             throw new GameEndedByFoldingException("Only one player not folded.");
     }
 
@@ -216,9 +200,7 @@ public class Game {
      * @return <code>true</code> if folded, <code>false</code> otherwise.
      */
     public boolean hasFolded(int playerId) {
-        Player player = players.get(playerIndexFromId(playerId));
-
-        return folded.get(player);
+        return players.get(playerId).isFolded();
     }
 
     /**
@@ -227,13 +209,15 @@ public class Game {
      * @return <code>true</code> if over, <code>false</code> otherwise.
      */
     public boolean biddingOver() {
-        for (Player player: players)
-            if ((currentBids.get(player) < currentNegotiationStake || !bidden.get(player)) && !folded.get(player))
+        for (Player player: players.values())
+            if ((player.getCurrentBid() < currentNegotiationStake || !player.hasBidden()) && !player.isFolded())
                 return false;
 
+        for (Player player: players.values()) {
+            player.setCurrentBid(0);
+            player.setBidden(false);
+        }
 
-        currentBids.replaceAll((p, v) -> 0);
-        bidden.replaceAll((p, v) -> false);
         endNegotiation();
         return true;
     }
@@ -249,17 +233,17 @@ public class Game {
         ArrayList<Integer> winners = createWinnersList(ranking, handValues);
         HashMap<Integer, Integer> playerPrizes = new HashMap<>();
 
-        if (countFoldedPlayers() + 1 == numberOfPlayers) {
-            for (Player player : players) {
-                if (!folded.get(player)) {
+        if (foldedPlayers + 1 == numberOfPlayers) {
+            for (Player player : players.values()) {
+                if (!player.isFolded()) {
                     player.getPrize(stake);
                     playerPrizes.put(player.getId(), stake);
                 }
             }
         }
         else {
-            for (Player player : players) {
-                if (winners.contains(player.getId()) && !folded.get(player)) {
+            for (Player player : players.values()) {
+                if (winners.contains(player.getId()) && !player.isFolded()) {
                     player.getPrize(stake / winners.size());
                     playerPrizes.put(player.getId(), stake / winners.size());
                 }
@@ -270,9 +254,9 @@ public class Game {
         stake = 0;
 
         for (Integer id: playersToRemove)
-            removePlayer(id);
+            players.remove(id);
 
-        for (Player player: players)
+        for (Player player: players.values())
             player.clearHand();
 
         return playerPrizes;
@@ -285,10 +269,9 @@ public class Game {
      */
     public HashMap<Integer, HandEvaluator.HandValues> evaluateHands() {
         HashMap<Integer, HandEvaluator.HandValues> handValues = new HashMap<>();
-        HandEvaluator handEvaluator = new HandEvaluator();
 
-        for (Player player: players)
-            handValues.put(player.getId(), handEvaluator.evaluate(player.getHand()));
+        for (Player player: players.values())
+            handValues.put(player.getId(), player.getHandEvaluation());
 
         return handValues;
     }
@@ -299,29 +282,19 @@ public class Game {
      * @return Bidding order.
      */
     public ArrayList<Integer> getBiddingOrder() {
-        ArrayList<Integer> biddingOrder = new ArrayList<>();
-        int dealerIndex = playerIndexFromId(dealerId);
-
-        for (int i = 0; i < players.size(); i++)
-            biddingOrder.add(players.get((dealerIndex + i + 1) % players.size()).getId());
-
         return biddingOrder;
     }
 
     public int getPlayerCredit(int playerId) {
-        Player player = players.get(playerIndexFromId(playerId));
-
-        return player.getCredit();
+        return players.get(playerId).getCredit();
     }
 
     private void moveDealer() {
-        int dealerIndex = playerIndexFromId(dealerId);
-
-        dealerId = players.get((dealerIndex + 1) % players.size()).getId();
+        biddingOrder.add(biddingOrder.remove(0));
     }
 
     private void takeAnte() throws NotEnoughCreditException {
-        for (Player player: players) {
+        for (Player player: players.values()) {
             try {
                 player.bid(ante);
             }
@@ -329,56 +302,45 @@ public class Game {
                 throw new NotEnoughCreditException("One of the players does not have enough credits to start new game.");
             }
 
-            allGameBids.put(player, ante);
             stake += ante;
         }
     }
 
     private void dealCards() {
         int numberOfCards = 5;
-        ArrayList<Integer> biddingOrder = getBiddingOrder();
 
         for (int i = 0; i < numberOfCards; i++)
-            for (Integer playerId: biddingOrder) {
-                Player player = players.get(playerIndexFromId(playerId));
+            for (Integer id: getBiddingOrder()) {
+                Player player = players.get(id);
                 player.receiveCard(deck.dealCard());
             }
 
-    }
-
-    private int playerIndexFromId(int id) {
-        for (int i = 0; i < players.size(); i++)
-            if (players.get(i).getId() == id)
-                return i;
-
-        return -1;
     }
 
     private ArrayList<Integer> createRanking(HashMap<Integer, HandEvaluator.HandValues> handValues) {
         // Create ranking of players' hand values storing their ids. Descending order.
 
         ArrayList<Integer> ranking = initializeRanking(handValues);
-        HandEvaluator handEvaluator = new HandEvaluator();
 
         Integer leaderId = ranking.get(0);
-        Player leadingPlayer = players.get(playerIndexFromId(leaderId));
+        Player leadingPlayer = players.get(leaderId);
         HandEvaluator.HandValues leaderHandValue = handValues.get(leaderId);
 
         // Order ranking by settling draws between hands with the same hand value.
         for (int i = 1; i < ranking.size(); i++) {
             Integer currentlyCheckedId = ranking.get(i);
-            Player currentlyCheckedPlayer = players.get(playerIndexFromId(currentlyCheckedId));
+            Player currentlyCheckedPlayer = players.get(currentlyCheckedId);
             HandEvaluator.HandValues currentlyCheckedHandValue = handValues.get(currentlyCheckedId);
 
             if (leaderHandValue == currentlyCheckedHandValue)
 
                 // If currently checked players hand is at least as good as current leader.
-                if (handEvaluator.settleDraw(leadingPlayer.getHand(), currentlyCheckedPlayer.getHand(), leaderHandValue) <= 0) {
+                if (HandEvaluator.settleDraw(leadingPlayer.getHand(), currentlyCheckedPlayer.getHand(), leaderHandValue) <= 0) {
                     // Make currently checked player the leader.
                     ranking.add(0, ranking.remove(i));
 
                     leaderId = ranking.get(0);
-                    leadingPlayer = players.get(playerIndexFromId(leaderId));
+                    leadingPlayer = players.get(leaderId);
                     leaderHandValue = handValues.get(leaderId);
                 }
         }
@@ -388,7 +350,6 @@ public class Game {
 
     private ArrayList<Integer> createWinnersList(ArrayList<Integer> ranking, HashMap<Integer, HandEvaluator.HandValues> handValues) {
         // Return number of draws that were irresolvable.
-        HandEvaluator handEvaluator = new HandEvaluator();
         ArrayList<Integer> winners = new ArrayList<>();
 
         for (Integer id : ranking)
@@ -400,10 +361,10 @@ public class Game {
         for (int i = 0; i < ranking.size() - 1; i++)
         {
             if (handValues.get(ranking.get(i + 1)) == handValues.get(ranking.get(i))) {
-                ArrayList<Card> hand1 = players.get(playerIndexFromId(ranking.get(i))).getHand();
-                ArrayList<Card> hand2 = players.get(playerIndexFromId(ranking.get(i + 1))).getHand();
+                ArrayList<Card> hand1 = players.get(ranking.get(i)).getHand();
+                ArrayList<Card> hand2 = players.get(ranking.get(i + 1)).getHand();
 
-                if (handEvaluator.settleDraw(hand1, hand2, handValues.get(ranking.get(i))) == 0)
+                if (HandEvaluator.settleDraw(hand1, hand2, handValues.get(ranking.get(i))) == 0)
                     winners.add(ranking.get(i + 1));
                 else
                     return winners;
@@ -415,43 +376,16 @@ public class Game {
         return winners;
     }
 
-    private int countFoldedPlayers() {
-        int countFolded = 0;
-
-        for (Player player1: folded.keySet())
-            if(hasFolded(player1.getId()))
-                countFolded++;
-
-        return countFolded;
-    }
-
     private void endNegotiation() {
-        for (Player player: players)
-            currentBids.put(player, 0);
+        for (Player player: players.values())
+            player.setCurrentBid(0);
 
         currentNegotiationStake = 0;
     }
 
     private ArrayList<Integer> initializeRanking(HashMap<Integer, HandEvaluator.HandValues> handValues) {
-        ArrayList<Integer> ranking = new ArrayList<>();
-
-        for (Integer key: handValues.keySet()) {
-            if (ranking.size() == 0) {
-                ranking.add(key);
-                continue;
-            }
-
-            for (int i = 0; i < ranking.size(); i++) {
-                Integer playerToCompareKey = ranking.get(i);
-
-                if (handValues.get(playerToCompareKey).compareTo(handValues.get(key)) < 0)
-                    if (!ranking.contains(key))
-                        ranking.add(i, key);
-            }
-
-            if (!ranking.contains(key))
-                ranking.add(key);
-        }
+        ArrayList<Integer> ranking = new ArrayList<>(handValues.keySet());
+        ranking.sort(Comparator.comparing(handValues::get, Comparator.reverseOrder()));
 
         return ranking;
     }

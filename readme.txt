@@ -54,8 +54,19 @@ Action types sent by the client:
                 * Sent by the client to confirm will to play the game. No response expected.
 	- bid - BID:
 		* Sent by the client to request bidding with given value. Expected responses: bid, den. Action parameters: "{bidValue}".
-
-
+	- fol - FOLD:
+		* Sent by the client to request folding. No expected responses.
+	- han - HAND:
+		* Sent by the client to request message with their hand from server. Expected responses: han.
+	- dsc - DISCONNECT:
+		* Sent by the client to inform about the closing connection. No expected responses.
+	- evl - EVAL:
+		* Sent by the client to request message with evaluation of their hand. Expected responses: evl.
+	- drw - DRAW:
+		* Sent by the client to inform wich cards player wants to discard. Excpected responses: den, han.
+	- crd - CREDIT:
+		* Sent by the client to request information of their credit. Excpected responses: crd.
+	
 
 
 

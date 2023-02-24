@@ -12,15 +12,27 @@ import java.util.ArrayList;
 public class Player {
     private final ArrayList<Card> hand = new ArrayList<>();
     private final Integer id;
+    private int currentBid;
+    private int allGameBid;
+    private boolean folded;
+    private boolean bidden;
     private int credit = 1000;
 
     Player(int id) {
         this.id = id;
+        currentBid = 0;
+        allGameBid = 0;
+        folded = false;
+        bidden = false;
     }
 
     Player(int id, int credit) {
         this.id = id;
         this.credit = credit;
+        currentBid = 0;
+        allGameBid = 0;
+        folded = false;
+        bidden = false;
     }
 
     /**
@@ -51,6 +63,8 @@ public class Player {
             throw new NotEnoughCreditException("Player has less credit than they want to bid. Player credit:" + credit);
 
         credit -= bidValue;
+        allGameBid += bidValue;
+        currentBid += bidValue;
     }
 
     /**
@@ -67,6 +81,10 @@ public class Player {
         return hand;
     }
 
+    public HandEvaluator.HandValues getHandEvaluation() {
+        return HandEvaluator.evaluate(getHand());
+    }
+
     public int getId() { return id; }
 
     /**
@@ -79,5 +97,33 @@ public class Player {
     @Override
     public int hashCode() {
         return id;
+    }
+
+    public void setCurrentBid(int currentBid) {
+        this.currentBid = currentBid;
+    }
+
+    public int getCurrentBid() {
+        return currentBid;
+    }
+
+    public int getAllGameBid() {
+        return allGameBid;
+    }
+
+    public boolean isFolded() {
+        return folded;
+    }
+
+    public void setFolded(boolean folded) {
+        this.folded = folded;
+    }
+
+    public boolean hasBidden() {
+        return bidden;
+    }
+
+    public void setBidden(boolean bidden) {
+        this.bidden = bidden;
     }
 }

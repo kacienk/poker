@@ -311,7 +311,8 @@ public class Game {
     private ArrayList<Integer> createRanking() {
         // Create ranking of players' hand values storing their ids. Descending order.
         ArrayList<Integer> ranking = new ArrayList<>(players.keySet());
-        ranking.sort((player1, player2) -> -HandEvaluator.compareHands(players.get(player1).getHand(), players.get(player2).getHand()));
+        HandEvaluator handEvaluator = new HandEvaluator();
+        ranking.sort((player1, player2) -> -handEvaluator.compareHands(players.get(player1).getHand(), players.get(player2).getHand()));
 
         return ranking;
     }
@@ -319,6 +320,7 @@ public class Game {
     private ArrayList<Integer> createWinnersList() {
         ArrayList<Integer> winners = new ArrayList<>();
         ArrayList<Integer> ranking = createRanking();
+        HandEvaluator handEvaluator = new HandEvaluator();
 
         for (Integer id : ranking)
             if (!hasFolded(id)) {
@@ -330,7 +332,7 @@ public class Game {
             ArrayList<Card> hand1 = players.get(ranking.get(i)).getHand();
             ArrayList<Card> hand2 = players.get(ranking.get(i + 1)).getHand();
 
-            if (HandEvaluator.compareHands(hand1, hand2) != 0)
+            if (handEvaluator.compareHands(hand1, hand2) != 0)
                 break;
 
             if (!hasFolded(ranking.get(i + 1)))

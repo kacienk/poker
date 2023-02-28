@@ -74,7 +74,8 @@ public class Player {
     }
 
     public HandEvaluator.HandValues getHandEvaluation() {
-        return HandEvaluator.evaluate(getHand());
+        HandEvaluator handEvaluator = new HandEvaluator();
+        return handEvaluator.evaluate(getHand());
     }
 
     /**

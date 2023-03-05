@@ -12,6 +12,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Class PokerServer is the main class that provides clients a way to play the poker game.
@@ -48,7 +49,6 @@ public class PokerServer {
      * Method main provide all functionality of the PokerServer.
      * @param args Arguments passed to the PokerServer while executing.
      */
-
     public static void main(String[] args) {
         String hostname = "localhost";
         int port = 31415;
@@ -140,8 +140,9 @@ public class PokerServer {
      * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
      * @throws EmptyMessageException EmptyMessageException is thrown when message received by the server is empty.
      */
-    private static MessageParser handleRead(SelectionKey key) throws IOException, EmptyMessageException {
-        //System.out.println("Reading...");
+    private static MessageParser handleRead(SelectionKey key) throws IOException {
+        MessageParser parser = new MessageParser();
+
         SocketChannel client = (SocketChannel) key.channel();
 
         ByteBuffer buffer = ByteBuffer.allocate(1024);
@@ -149,22 +150,19 @@ public class PokerServer {
 
         String message = new String(buffer.array()).trim();
 
-        if (message.isEmpty())
-            throw new EmptyMessageException("Message is empty");
-
-        System.out.println("Received: " + message);
-
-        MessageParser parser = new MessageParser(message);
-
-        try {
-            parser.getGameId();
-            parser.getPlayerId();
-            parser.getActionType();
-            parser.getActionParameters();
-        } catch (Exception e) {
-            throw e;
+        if (!message.isEmpty()) {
+            System.out.println("Received: " + message);
+            parser.parse(message);
+        }
+        else {
+            System.out.println("Received: {empty message}");
+            parser.setInvalidMessageTemplate();
         }
 
+        parser.getGameId();
+        parser.getPlayerId();
+        parser.getActionType();
+        parser.getActionParameters();
 
         return parser;
     }
@@ -193,7 +191,7 @@ public class PokerServer {
             buffer.put(message.getBytes());
             buffer.flip();
             int bytesWritten = client.write(buffer);
-            System.out.printf("Sending Message: %s\nbufferBytes: %d%n", message, bytesWritten);
+            System.out.printf("Sending Message: %s\n bufferBytes: %d%n", message, bytesWritten);
         }
         catch (IOException e) {
             e.printStackTrace();
@@ -208,7 +206,7 @@ public class PokerServer {
      * For further information please see {@link java.nio.channels.ServerSocketChannel}, {@link java.nio.channels.SocketChannel}.
      */
     private static void waitForConnections(ServerSocketChannel serverSocketChannel) throws IOException {
-        while (true) {
+        while (!game.canBegin()) {
             selector.select();
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
             Iterator<SelectionKey> it = selectedKeys.iterator();
@@ -218,15 +216,15 @@ public class PokerServer {
 
                 if (key.isAcceptable())
                     handleAccept(serverSocketChannel);
-                else if (key.isReadable())
-                    handleReadableKeyInWaitingForConnections(key);
+                else if (key.isReadable()) {
+                    MessageParser parser = handleRead(key);
+
+                    if (parser.getActionType() == MessageParser.Action.DISCONNECT)
+                        disconnect((SocketChannel) key.channel(), parser);
+                }
 
                 it.remove();
             }
-
-            if (game.canBegin())
-                return;
-
         }
     }
 
@@ -274,10 +272,8 @@ public class PokerServer {
         try {
             game.newGame();
             TimeUnit.SECONDS.sleep(1);
-        } catch (IncorrectNumbersOfPlayersException ignored) {
-
         }
-        catch (NotEnoughCreditException e) {
+        catch (NotEnoughCreditException | IncorrectNumbersOfPlayersException e) {
             System.out.println(e.getMessage());
 
             for (Integer key: clients.keySet())
@@ -289,7 +285,7 @@ public class PokerServer {
         for (Integer key: clients.keySet())
             handleWrite(game.getId(), key, MessageParser.Action.START, "");
 
-        sendPlayersHands();
+        sendPlayerHands();
         sendPlayerEvaluations();
 
         try {
@@ -310,12 +306,9 @@ public class PokerServer {
      * Method handles sending all players their hands by sending message with action HAND.
      * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
      */
-    private static void sendPlayersHands() {
-        HashMap<Integer, ArrayList<Card>> playerHands = game.getPlayerHands();
-
-        for (Integer key: playerHands.keySet())
-            for (Card card: playerHands.get(key))
-                handleWrite(game.getId(), key, MessageParser.Action.HAND, card.toString());
+    private static void sendPlayerHands() {
+        for (Integer id: game.getPlayers())
+            sendPlayerHands(id);
     }
 
     /**
@@ -324,7 +317,7 @@ public class PokerServer {
      *
      * @param id ID of the player that hand should be sent to.
      */
-    private static void sendPlayersHands(Integer id) {
+    private static void sendPlayerHands(Integer id) {
         HashMap<Integer, ArrayList<Card>> playerHands = game.getPlayerHands();
 
         for (Card card: playerHands.get(id))
@@ -336,10 +329,8 @@ public class PokerServer {
      * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
      */
     private static void sendPlayerEvaluations() {
-        HashMap<Integer, HandEvaluator.HandValues> handEvaluations = game.getPlayerHandsEvaluations();
-
-        for (Integer key: handEvaluations.keySet())
-            handleWrite(game.getId(), key, MessageParser.Action.EVAL, String.valueOf(handEvaluations.get(key)));
+        for (Integer id: game.getPlayers())
+            sendPlayerEvaluations(id);
     }
 
     /**
@@ -349,9 +340,7 @@ public class PokerServer {
      * @param id ID of the player that hand evaluation should be sent to.
      */
     private static void sendPlayerEvaluations(Integer id) {
-        HashMap<Integer, HandEvaluator.HandValues> handEvaluations = game.getPlayerHandsEvaluations();
-
-        handleWrite(game.getId(), id, MessageParser.Action.EVAL, String.valueOf(handEvaluations.get(id)));
+        handleWrite(game.getId(), id, MessageParser.Action.EVAL, String.valueOf(game.getPlayerHandEvaluation(id)));
     }
 
     /**
@@ -367,13 +356,7 @@ public class PokerServer {
 
         alreadySentBiddingRequest.put(id, true);
 
-        if (!game.hasFolded(id)) {
-            String stakes = game.getCurrentNegotiationStake() +
-                    " " +
-                    game.howMuchToBid(id);
-
-            handleWrite(game.getId(), id, MessageParser.Action.BID, stakes);
-        }
+        sendBiddingRequest(id);
     }
 
     /**
@@ -401,6 +384,7 @@ public class PokerServer {
      */
     private static void handleBiddingProcess() throws IOException, GameEndedByFoldingException {
         HashMap<Integer, Boolean> alreadySentBiddingRequest = new HashMap<>();
+
         for (Integer key: clients.keySet())
             alreadySentBiddingRequest.put(key, false);
 
@@ -472,8 +456,7 @@ public class PokerServer {
 
         alreadySentDrawRequest.put(id, true);
 
-        if (!game.hasFolded(id))
-            handleWrite(game.getId(), id, MessageParser.Action.DRAW, "");
+        sendDrawRequest(id);
     }
 
     /**
@@ -496,17 +479,15 @@ public class PokerServer {
      * @throws IncorrectNumberOfCardsException See {@link pl.edu.agh.kis.pz1.exceptions.IncorrectNumberOfCardsException}
      */
     private static void handleDraw(MessageParser parser) throws NoSuchCardException, IncorrectNumberOfCardsException {
-        ArrayList<Integer> cardsToDiscard = new ArrayList<>();
+        ArrayList<Integer> cardsToDiscard;
 
         String playerRequest = parser.getActionParameters();
 
         if (playerRequest.isEmpty())
             return;
 
-        ArrayList<String> playerRequestSplit = new ArrayList<>(Arrays.asList(playerRequest.split(" ")));
-
-        for (String card: playerRequestSplit)
-            cardsToDiscard.add(Integer.parseInt(card));
+        String[] playerRequestSplit = playerRequest.split(" ");
+        cardsToDiscard = new ArrayList<>(Arrays.stream(playerRequestSplit).map(Integer::parseInt).toList());
 
         game.draw(parser.getPlayerId(), cardsToDiscard);
     }
@@ -517,24 +498,18 @@ public class PokerServer {
      * @throws IOException Something went wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
      */
     private static void handleDrawingProcess() throws IOException {
-        HashMap<Integer, Boolean> alreadySentDrawRequest = new HashMap<>();
-        for (Integer key: clients.keySet())
-            alreadySentDrawRequest.put(key, false);
-
         ArrayList<Integer> biddingOrder = game.getBiddingOrder();
-        int drawerIndex = 0;
+        Iterator<Integer> biddingOrderIterator = biddingOrder.iterator();
 
-        do {
-            int id = biddingOrder.get(drawerIndex);
+        while (biddingOrderIterator.hasNext()) {
+            Integer id = biddingOrderIterator.next();
 
-            if (game.hasFolded(id)) {
-                drawerIndex++;
+            if (game.hasFolded(id))
                 continue;
-            }
 
-            sendDrawRequest(id, alreadySentDrawRequest);
+            sendDrawRequest(id);
 
-            int keys = selector.select();
+            selector.select();
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
             Iterator<SelectionKey> it = selectedKeys.iterator();
 
@@ -542,13 +517,27 @@ public class PokerServer {
                 SelectionKey key = it.next();
 
                 if (key.isReadable()) {
-                    drawerIndex = handleReadableKeyInDrawing(key, drawerIndex);
+                    MessageParser parser = handleRead(key);
+
+                    switch (parser.getActionType()) {
+                        case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
+                        case HAND -> {
+                            sendPlayerHands(parser.getPlayerId());
+                            sendDrawRequest(parser.getPlayerId());
+                        }
+                        case EVAL -> {
+                            sendPlayerEvaluations(parser.getPlayerId());
+                            sendDrawRequest(parser.getPlayerId());
+                        }
+                        case DRAW -> drawerIndex = handleDrawRequest(parser, drawerIndex);
+                        default -> System.out.println("Unexpected action.");
+                    }
                 }
 
                 it.remove();
             }
 
-        } while (drawerIndex < biddingOrder.size());
+        }
     }
 
     /**
@@ -709,7 +698,7 @@ public class PokerServer {
                 switch (parser.getActionType()) {
                     case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
                     case HAND -> {
-                        sendPlayersHands(parser.getPlayerId());
+                        sendPlayerHands(parser.getPlayerId());
                         sendBiddingRequest(parser.getPlayerId());
                     }
                     case FOLD -> {
@@ -745,26 +734,23 @@ public class PokerServer {
      *  Handles draw request received by server.
      *
      * @param parser  MessageParser containing message from client.
-     * @param drawerIndex Index of current drawer.
      * @return Index of next drawer.
      */
-    private static int handleDrawRequest(MessageParser parser, int drawerIndex) {
+    private static int handleDrawRequest(MessageParser parser) {
         try {
             handleDraw(parser);
-            sendPlayersHands(parser.getPlayerId());
+            sendPlayerHands(parser.getPlayerId());
             sendPlayerEvaluations(parser.getPlayerId());
-            drawerIndex++;
         }
         catch (NoSuchCardException | IncorrectNumberOfCardsException e) {
             handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, e.getMessage());
             sendDrawRequest(parser.getPlayerId());
-        } catch (NumberFormatException e) {
+        }
+        catch (NumberFormatException e) {
             String message = "Incorrect input" + parser.getActionParameters() + ".";
             handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, message);
             sendDrawRequest(parser.getPlayerId());
         }
-
-        return drawerIndex;
     }
 
     /**
@@ -842,26 +828,20 @@ public class PokerServer {
      * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
      */
     private static int handleReadableKeyInDrawing(SelectionKey key, int drawerIndex) throws IOException {
-        try {
-            MessageParser parser = handleRead(key);
+        MessageParser parser = handleRead(key);
 
-            switch (parser.getActionType()) {
-                case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
-                case HAND -> {
-                    sendPlayersHands(parser.getPlayerId());
-                    sendDrawRequest(parser.getPlayerId());
-                }
-                case EVAL -> {
-                    sendPlayerEvaluations(parser.getPlayerId());
-                    sendDrawRequest(parser.getPlayerId());
-                }
-                case DRAW -> drawerIndex = handleDrawRequest(parser, drawerIndex);
-
-                default -> System.out.println("Unexpected action.");
+        switch (parser.getActionType()) {
+            case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
+            case HAND -> {
+                sendPlayerHands(parser.getPlayerId());
+                sendDrawRequest(parser.getPlayerId());
             }
-        }
-        catch (EmptyMessageException ignored) {
-
+            case EVAL -> {
+                sendPlayerEvaluations(parser.getPlayerId());
+                sendDrawRequest(parser.getPlayerId());
+            }
+            case DRAW -> drawerIndex = handleDrawRequest(parser, drawerIndex);
+            default -> System.out.println("Unexpected action.");
         }
 
         return drawerIndex;

@@ -30,7 +30,7 @@ public class MessageParser {
      * CREDIT - client want to get credit or server sends credit.
      * PRIZE - information about the prize from the server.
      */
-    public enum Action {ACCEPT, DENY, BID, FOLD, HAND, START, DISCONNECT, EVAL, END, DRAW, CREDIT, PRIZE}
+    public enum Action {ACCEPT, DENY, BID, FOLD, HAND, START, DISCONNECT, EVAL, END, DRAW, CREDIT, PRIZE, INVALID}
 
     MessageParser() {
 
@@ -58,11 +58,11 @@ public class MessageParser {
     /**
      * Parses arguments to the message format.
      *
-     * @param gameId ID of the game related to messsage.
-     * @param playerId ID of the player receiving or sending message.
+     * @param gameId ID of the game related to the message.
+     * @param playerId ID of the player receiving or sending the message.
      * @param action Type of action.
      * @param actionParameters Parameters for the action.
-     * @return
+     * @return Message parsed to string format.
      */
     public String parse(int gameId, int playerId, Action action, String actionParameters) {
         args.clear();
@@ -83,11 +83,20 @@ public class MessageParser {
             case DRAW -> args.add("drw");
             case CREDIT -> args.add("crd");
             case PRIZE -> args.add("prz");
+            case INVALID -> args.add("inv");
         }
 
         args.add(actionParameters);
 
         return getMessage();
+    }
+
+    /**
+     * Sets message to template invalid message.
+     * This should be used when message is empty or invalid.
+     */
+    public void setInvalidMessageTemplate() {
+        parse("-1/-1/inv/");
     }
 
     public int getGameId() {

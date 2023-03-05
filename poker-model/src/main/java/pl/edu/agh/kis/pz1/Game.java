@@ -4,6 +4,7 @@ import pl.edu.agh.kis.pz1.exceptions.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Set;
 
 /**
  * Class implementing poker game.
@@ -246,17 +247,13 @@ public class Game {
     }
 
     /**
-     * Evaluates players hands.
+     * Evaluates player hand.
      *
-     * @return HashMap map where key is playerId and value the evaluation.
+     * @param playerId ID of the player, whose hand shall be evaluated.
+     * @return Evaluation of the hand of the player with the given ID.
      */
-    public HashMap<Integer, HandEvaluator.HandValues> getPlayerHandsEvaluations() {
-        HashMap<Integer, HandEvaluator.HandValues> handValues = new HashMap<>();
-
-        for (Player player: players.values())
-            handValues.put(player.getId(), player.getHandEvaluation());
-
-        return handValues;
+    public HandEvaluator.HandValues getPlayerHandEvaluation(int playerId) {
+        return players.get(playerId).getHandEvaluation();
     }
 
     public int getId() {
@@ -264,12 +261,21 @@ public class Game {
     }
 
     /**
-     * Creates and returns bidding order that depends on the dealer.
+     * Returns bidding order that depends on the dealer.
      *
      * @return Bidding order.
      */
     public ArrayList<Integer> getBiddingOrder() {
         return biddingOrder;
+    }
+
+    /**
+     * Get list of players participating in the game.
+     *
+     * @return Set of players' IDs.
+     */
+    public Set<Integer> getPlayers() {
+        return players.keySet();
     }
 
     public int getPlayerCredit(int playerId) {

@@ -481,12 +481,7 @@ public class PokerServer {
     private static void handleDraw(MessageParser parser) throws NoSuchCardException, IncorrectNumberOfCardsException {
         ArrayList<Integer> cardsToDiscard;
 
-        String playerRequest = parser.getActionParameters();
-
-        if (playerRequest.isEmpty())
-            return;
-
-        String[] playerRequestSplit = playerRequest.split(" ");
+        String[] playerRequestSplit = parser.getActionParameters().split(" ");
         cardsToDiscard = new ArrayList<>(Arrays.stream(playerRequestSplit).map(Integer::parseInt).toList());
 
         game.draw(parser.getPlayerId(), cardsToDiscard);
@@ -500,12 +495,13 @@ public class PokerServer {
     private static void handleDrawingProcess() throws IOException {
         ArrayList<Integer> biddingOrder = game.getBiddingOrder();
         Iterator<Integer> biddingOrderIterator = biddingOrder.iterator();
+        Integer id = biddingOrderIterator.next();
 
         while (biddingOrderIterator.hasNext()) {
-            Integer id = biddingOrderIterator.next();
-
-            if (game.hasFolded(id))
+            if (game.hasFolded(id)) {
+                id = biddingOrderIterator.next();
                 continue;
+            }
 
             sendDrawRequest(id);
 
@@ -516,27 +512,36 @@ public class PokerServer {
             while (it.hasNext()) {
                 SelectionKey key = it.next();
 
-                if (key.isReadable()) {
-                    MessageParser parser = handleRead(key);
+                if (!key.isReadable())
+                    continue;
 
-                    switch (parser.getActionType()) {
-                        case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
-                        case HAND -> {
+                MessageParser parser = handleRead(key);
+
+                switch (parser.getActionType()) {
+                    case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
+                    case HAND -> sendPlayerHands(parser.getPlayerId());
+                    case EVAL -> sendPlayerEvaluations(parser.getPlayerId());
+                    case DRAW -> {
+                        try {
+                            handleDraw(parser);
                             sendPlayerHands(parser.getPlayerId());
-                            sendDrawRequest(parser.getPlayerId());
-                        }
-                        case EVAL -> {
                             sendPlayerEvaluations(parser.getPlayerId());
-                            sendDrawRequest(parser.getPlayerId());
+
+                            id = biddingOrderIterator.next();
                         }
-                        case DRAW -> drawerIndex = handleDrawRequest(parser, drawerIndex);
-                        default -> System.out.println("Unexpected action.");
+                        catch (NoSuchCardException | IncorrectNumberOfCardsException e) {
+                            handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, e.getMessage());
+                        }
+                        catch (NumberFormatException e) {
+                            String message = "Incorrect input" + parser.getActionParameters() + ".";
+                            handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, message);
+                        }
                     }
+                    default -> System.out.println("Unexpected action.");
                 }
 
                 it.remove();
             }
-
         }
     }
 
@@ -734,9 +739,8 @@ public class PokerServer {
      *  Handles draw request received by server.
      *
      * @param parser  MessageParser containing message from client.
-     * @return Index of next drawer.
      */
-    private static int handleDrawRequest(MessageParser parser) {
+    private static void handleDrawRequest(MessageParser parser) {
         try {
             handleDraw(parser);
             sendPlayerHands(parser.getPlayerId());

@@ -12,7 +12,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * Class PokerServer is the main class that provides clients a way to play the poker game.
@@ -383,36 +382,64 @@ public class PokerServer {
      * @throws GameEndedByFoldingException See {@link pl.edu.agh.kis.pz1.exceptions.GameEndedByFoldingException}
      */
     private static void handleBiddingProcess() throws IOException, GameEndedByFoldingException {
-        HashMap<Integer, Boolean> alreadySentBiddingRequest = new HashMap<>();
-
-        for (Integer key: clients.keySet())
-            alreadySentBiddingRequest.put(key, false);
-
         ArrayList<Integer> biddingOrder = game.getBiddingOrder();
-        int bidderIndex = 0;
+        Iterator<Integer> biddingOrderIterator = biddingOrder.iterator();
+        Integer playerId = biddingOrderIterator.next();
 
-        do {
-            int bidderId = biddingOrder.get(bidderIndex);
+        while (!game.biddingOver()) {
+            if (!biddingOrderIterator.hasNext())
+                biddingOrderIterator = biddingOrder.iterator();
 
-            if (game.hasFolded(bidderId)) {
-                bidderIndex = nextBidder(bidderIndex, biddingOrder, alreadySentBiddingRequest);
+            if (game.hasFolded(playerId)) {
+                playerId = biddingOrderIterator.next();
                 continue;
             }
 
-            sendBiddingRequest(bidderId, alreadySentBiddingRequest);
+            sendBiddingRequest(playerId);
 
-            int keys = selector.select();
+            selector.select();
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
             Iterator<SelectionKey> it = selectedKeys.iterator();
 
             while (it.hasNext()) {
                 SelectionKey key = it.next();
 
-                bidderIndex = handleKeyInBiddingProcess(key, bidderIndex, biddingOrder, alreadySentBiddingRequest);
+                if (!key.isReadable())
+                    continue;
+
+                MessageParser parser = handleRead(key);
+
+                switch (parser.getActionType()) {
+                    case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
+                    case HAND -> sendPlayerHands(parser.getPlayerId());
+                    case EVAL -> sendPlayerEvaluations(parser.getPlayerId());
+                    case CREDIT -> sendPlayerCredit(parser.getPlayerId());
+                    case FOLD -> {
+                        handleFold(parser.getPlayerId());
+                        playerId = biddingOrderIterator.next();
+                    }
+                    case BID -> {
+                        try {
+                            int bid = Integer.parseInt(parser.getActionParameters());
+                            game.bid(parser.getPlayerId(), bid);
+
+                            playerId = biddingOrderIterator.next();
+                        }
+                        catch (TooSmallBidException | NotEnoughCreditException e) {
+                            handleWrite(game.getId(), playerId, MessageParser.Action.DENY, e.getMessage());
+                            sendPlayerCredit(playerId);
+                        }
+                        catch (NumberFormatException e) {
+                            String message = "Incorrect input" + parser.getActionParameters() + ".";
+                            handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, message);
+                        }
+                    }
+                    default -> System.out.println("Unexpected action.");
+                }
 
                 it.remove();
             }
-        } while (!game.biddingOver());
+        }
     }
 
     /**
@@ -495,15 +522,15 @@ public class PokerServer {
     private static void handleDrawingProcess() throws IOException {
         ArrayList<Integer> biddingOrder = game.getBiddingOrder();
         Iterator<Integer> biddingOrderIterator = biddingOrder.iterator();
-        Integer id = biddingOrderIterator.next();
+        Integer playerId = biddingOrderIterator.next();
 
         while (biddingOrderIterator.hasNext()) {
-            if (game.hasFolded(id)) {
-                id = biddingOrderIterator.next();
+            if (game.hasFolded(playerId)) {
+                playerId = biddingOrderIterator.next();
                 continue;
             }
 
-            sendDrawRequest(id);
+            sendDrawRequest(playerId);
 
             selector.select();
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
@@ -527,7 +554,7 @@ public class PokerServer {
                             sendPlayerHands(parser.getPlayerId());
                             sendPlayerEvaluations(parser.getPlayerId());
 
-                            id = biddingOrderIterator.next();
+                            playerId = biddingOrderIterator.next();
                         }
                         catch (NoSuchCardException | IncorrectNumberOfCardsException e) {
                             handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, e.getMessage());
@@ -844,7 +871,7 @@ public class PokerServer {
                 sendPlayerEvaluations(parser.getPlayerId());
                 sendDrawRequest(parser.getPlayerId());
             }
-            case DRAW -> drawerIndex = handleDrawRequest(parser, drawerIndex);
+            case DRAW -> handleDrawRequest(parser);
             default -> System.out.println("Unexpected action.");
         }
 

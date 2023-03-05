@@ -264,9 +264,9 @@ public class PokerClient {
                     try {
                         int scanned = s.nextInt();
 
-                        if (scanned >= 0) {
+                        if (scanned >= 0)
                             bid = scanned;
-                        } else
+                        else
                             System.out.println("Incorrect value. Bid should be greater or equal 0.");
                     } catch (InputMismatchException e) {
                         System.out.println("Incorrect value. Your bid should be integer.");

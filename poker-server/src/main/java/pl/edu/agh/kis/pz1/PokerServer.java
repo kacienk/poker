@@ -137,7 +137,6 @@ public class PokerServer {
      * @param key SelectionKey given by Selector.
      * @return Message parsed in MessageParser. For further information please see {@link pl.edu.agh.kis.pz1.MessageParser}.
      * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
-     * @throws EmptyMessageException EmptyMessageException is thrown when message received by the server is empty.
      */
     private static MessageParser handleRead(SelectionKey key) throws IOException {
         MessageParser parser = new MessageParser();
@@ -219,7 +218,7 @@ public class PokerServer {
                     MessageParser parser = handleRead(key);
 
                     if (parser.getActionType() == MessageParser.Action.DISCONNECT)
-                        disconnect((SocketChannel) key.channel(), parser);
+                        disconnect(parser);
                 }
 
                 it.remove();
@@ -231,16 +230,21 @@ public class PokerServer {
      * Method handles user disconnecting from the server after receiving or sending DISCONNECT action in message.
      * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
      *
-     * @param client SocketChannel of client that sent the message.
      * @param parser MessageParser containing message from client.
      *
      */
-    private static void disconnect(SocketChannel client, MessageParser parser) {
+    private static void disconnect(MessageParser parser) {
         System.out.println("Player " + parser.getPlayerId() + " disconnected from game " + parser.getGameId());
-        game.removePlayer(parser.getPlayerId());
+        // TODO
 
         try {
-            client.close();
+            clients.get(parser.getPlayerId()).close();
+            clients.remove(parser.getPlayerId());
+
+            game.removePlayer(parser.getPlayerId());
+        }
+        catch (GameEndedByFoldingException e) {
+            throw new RuntimeException(e);
         }
         catch (IOException e) {
             e.printStackTrace();
@@ -345,22 +349,6 @@ public class PokerServer {
     /**
      * Method sends bidding request to the player by sending message with action BID.
      * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
-     *
-     * @param id ID of the player that request should be sent to.
-     * @param alreadySentBiddingRequest HashMap containing information if bidding request was already sent to players.
-     */
-    private static void sendBiddingRequest(Integer id, HashMap<Integer, Boolean> alreadySentBiddingRequest) {
-        if (alreadySentBiddingRequest.get(id) && !game.hasFolded(id))
-            return;
-
-        alreadySentBiddingRequest.put(id, true);
-
-        sendBiddingRequest(id);
-    }
-
-    /**
-     * Method sends bidding request to the player by sending message with action BID.
-     * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
      * Method is executed only after denial of the bidding request received by server.
      *
      * @param id ID of the player that request should be sent to.
@@ -410,7 +398,7 @@ public class PokerServer {
                 MessageParser parser = handleRead(key);
 
                 switch (parser.getActionType()) {
-                    case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
+                    case DISCONNECT -> disconnect(parser);
                     case HAND -> sendPlayerHands(parser.getPlayerId());
                     case EVAL -> sendPlayerEvaluations(parser.getPlayerId());
                     case CREDIT -> sendPlayerCredit(parser.getPlayerId());
@@ -440,50 +428,6 @@ public class PokerServer {
                 it.remove();
             }
         }
-    }
-
-    /**
-     * Method handles single bid request received from the player.
-     *
-     * @param parser MessageParser containing message from client.
-     * @return <code>true</code> when bid was accepted, <code>false</code> otherwise.
-     */
-    private static boolean handleOneBid(MessageParser parser) {
-        int playerId = parser.getPlayerId();
-        int bid = 0;
-
-        try {
-            bid = Integer.parseInt(parser.getActionParameters());
-        }
-        catch (NumberFormatException e) {
-            e.printStackTrace();
-        }
-
-        try {
-            game.bid(playerId, bid);
-            return true;
-        } catch (TooSmallBidException | NotEnoughCreditException e) {
-            handleWrite(game.getId(), playerId, MessageParser.Action.DENY, e.getMessage());
-            sendPlayerCredit(playerId);
-            sendBiddingRequest(playerId);
-            return false;
-        }
-    }
-
-    /**
-     * Method sends draw request to all the players by sending message with action DRAW.
-     * For further information about actions see {@link pl.edu.agh.kis.pz1.MessageParser}
-     *
-     * @param id ID of the player that request should be sent to.
-     * @param alreadySentDrawRequest HashMap containing information if draw request was already sent to the players.
-     */
-    private static void sendDrawRequest(Integer id, HashMap<Integer, Boolean> alreadySentDrawRequest) {
-        if (alreadySentDrawRequest.get(id))
-            return;
-
-        alreadySentDrawRequest.put(id, true);
-
-        sendDrawRequest(id);
     }
 
     /**
@@ -545,7 +489,7 @@ public class PokerServer {
                 MessageParser parser = handleRead(key);
 
                 switch (parser.getActionType()) {
-                    case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
+                    case DISCONNECT -> disconnect(parser);
                     case HAND -> sendPlayerHands(parser.getPlayerId());
                     case EVAL -> sendPlayerEvaluations(parser.getPlayerId());
                     case DRAW -> {
@@ -599,15 +543,9 @@ public class PokerServer {
     private static void handlePrizingProcess() {
         HashMap<Integer, Integer> playerPrizes = game.splitStakeBetweenWinners();
 
-        for (Integer key: clients.keySet()) {
-            if (playerPrizes.containsKey(key)) {
-                handleWrite(game.getId(), key, MessageParser.Action.PRIZE, String.valueOf(playerPrizes.get(key)));
-            }
-            else {
-                handleWrite(game.getId(), key, MessageParser.Action.PRIZE, String.valueOf(0));
-            }
-
-            sendPlayerCredit(key);
+        for (Map.Entry<Integer, Integer> entry: playerPrizes.entrySet()) {
+            handleWrite(game.getId(), entry.getKey(), MessageParser.Action.PRIZE, String.valueOf(entry.getValue()));
+            sendPlayerCredit(entry.getKey());
         }
     }
 
@@ -625,34 +563,49 @@ public class PokerServer {
         handlePrizingProcess();
 
         Set<Integer> playersWantToPlay = new HashSet<>();
-        HashMap<Integer, Boolean> acceptedLastRequest = new HashMap<>();
-        int playersMissing = 0;
+        int playersMissing = numberOfPlayers - game.getPlayers().size();
 
-        sendEnd(playersMissing, acceptedLastRequest);
+        sendEnd(playersMissing, game.getPlayers());
 
-        do {
-            int keys = selector.select();
+        while (playersMissing != numberOfPlayers) {
+            selector.select();
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
             Iterator<SelectionKey> it = selectedKeys.iterator();
 
             while (it.hasNext()) {
+                int id;
                 SelectionKey key = it.next();
 
-                if (key.isAcceptable())
-                    playersMissing = acceptableKeyInEndgameProcess(serverSocketChannel, playersMissing, playersWantToPlay, acceptedLastRequest);
-                if (key.isReadable())
-                    playersMissing = readableKeyInEndgameProcess(key, playersMissing, playersWantToPlay, acceptedLastRequest);
+                if (key.isAcceptable() && (id = handleAccept(serverSocketChannel)) != -1) {
+                    sendEnd(playersMissing, playersWantToPlay);
+                    playersWantToPlay.clear();
+                    playersWantToPlay.add(id);
+                }
+                if (key.isReadable()) {
+                    MessageParser parser = handleRead(key);
+
+                    if (parser.getActionType() == MessageParser.Action.DISCONNECT) {
+                        disconnect(parser);
+
+                        playersWantToPlay.remove(parser.getPlayerId());
+                        sendEnd(playersMissing, playersWantToPlay);
+                        playersWantToPlay.clear();
+                    }
+
+                    if (parser.getActionType() == MessageParser.Action.ACCEPT)
+                        playersWantToPlay.add(parser.getPlayerId());
+                }
 
                 it.remove();
             }
 
-            if (playersWantToPlay.size() == numberOfPlayers && !acceptedLastRequest.containsValue(false)) {
+            playersMissing = numberOfPlayers - game.getPlayers().size();
+
+            if (playersWantToPlay.size() == numberOfPlayers) {
                 TimeUnit.SECONDS.sleep(1);
                 return true;
             }
-
-
-        } while (playersMissing != numberOfPlayers);
+        }
 
         return false;
     }
@@ -661,220 +614,9 @@ public class PokerServer {
      * Sends players information about game end by sending message with action END and information about how many players are missing.
      *
      * @param playersMissing Number of players needed to start new game.
-     * @param acceptedLastRequest HashMap containing information if players accepted last end request.
      */
-    private static void sendEnd(int playersMissing, HashMap<Integer, Boolean> acceptedLastRequest) {
-        for (Integer key: clients.keySet()) {
-            if (acceptedLastRequest.containsKey(key) && acceptedLastRequest.get(key)) {
-                acceptedLastRequest.put(key, false);
+    private static void sendEnd(int playersMissing, Set<Integer> recipients) {
+        for (Integer key: recipients)
                 handleWrite(game.getId(), key, MessageParser.Action.END, String.valueOf(playersMissing));
-            }
-            else if (!acceptedLastRequest.containsKey(key)) {
-                acceptedLastRequest.put(key, false);
-                handleWrite(game.getId(), key, MessageParser.Action.END, String.valueOf(playersMissing));
-            }
-        }
-    }
-
-    /**
-     * Method handles readable keys in waiting for connections.
-     *
-     * @param key SelectionKey given by Selector.
-     * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
-     */
-    private static void handleReadableKeyInWaitingForConnections(SelectionKey key) throws IOException {
-        try {
-            MessageParser parser = handleRead(key);
-
-            if (parser.getActionType() == MessageParser.Action.DISCONNECT)
-                disconnect((SocketChannel) key.channel(), parser);
-        } catch (EmptyMessageException ignored) {
-
-        }
-    }
-
-    /**
-     * Method returns next bidder index.
-     *
-     * @param bidderIndex Current bidder index in biddingOrder.
-     * @param biddingOrder ArrayList containing biddingOrder. See {@link Game#getBiddingOrder()}.
-     * @param alreadySentBiddingRequest HashMap containing information if bidding request was already sent to players.
-     *                                  If bidding round has ended all the values are set to false.
-     * @return Next bidder id.
-     */
-    private static int nextBidder(int bidderIndex, ArrayList<Integer> biddingOrder, HashMap<Integer, Boolean> alreadySentBiddingRequest) {
-        if (bidderIndex == biddingOrder.size() - 1)
-            alreadySentBiddingRequest.replaceAll((p, v) -> false);
-
-        return (bidderIndex + 1) % biddingOrder.size();
-    }
-
-    /**
-     *  Method handles readable keys in bidding process.
-     *
-     * @param key SelectionKey given by Selector.
-     * @param bidderIndex Current bidder index.
-     * @param biddingOrder ArrayList containing biddingOrder. See {@link Game#getBiddingOrder()}.
-     * @param sentBiddingRequest HashMap containing information if bidding request was already sent to players.
-     *                                  If bidding round has ended all the values are set to false.
-     * @return Next bidder index.
-     * @throws GameEndedByFoldingException See {@link pl.edu.agh.kis.pz1.exceptions.GameEndedByFoldingException}
-     * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
-     */
-    private static int handleKeyInBiddingProcess(SelectionKey key, int bidderIndex, ArrayList<Integer> biddingOrder,
-                                                  HashMap<Integer, Boolean> sentBiddingRequest) throws GameEndedByFoldingException, IOException {
-        if (key.isReadable()) {
-            try {
-                MessageParser parser = handleRead(key);
-
-                switch (parser.getActionType()) {
-                    case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
-                    case HAND -> {
-                        sendPlayerHands(parser.getPlayerId());
-                        sendBiddingRequest(parser.getPlayerId());
-                    }
-                    case FOLD -> {
-                        handleFold(parser.getPlayerId());
-
-                        bidderIndex = nextBidder(bidderIndex, biddingOrder, sentBiddingRequest);
-                    }
-                    case EVAL -> {
-                        sendPlayerEvaluations(parser.getPlayerId());
-                        sendBiddingRequest(parser.getPlayerId());
-                    }
-                    case BID -> {
-                        boolean biddenProperly = handleOneBid(parser);
-
-                        if (biddenProperly)
-                            bidderIndex = nextBidder(bidderIndex, biddingOrder, sentBiddingRequest);
-                    }
-                    case CREDIT -> {
-                        sendPlayerCredit(parser.getPlayerId());
-                        sendBiddingRequest(parser.getPlayerId());
-                    }
-                    default -> System.out.println("Unexpected action.");
-                }
-            } catch (EmptyMessageException ignored) {
-
-            }
-        }
-
-        return bidderIndex;
-    }
-
-    /**
-     *  Handles draw request received by server.
-     *
-     * @param parser  MessageParser containing message from client.
-     */
-    private static void handleDrawRequest(MessageParser parser) {
-        try {
-            handleDraw(parser);
-            sendPlayerHands(parser.getPlayerId());
-            sendPlayerEvaluations(parser.getPlayerId());
-        }
-        catch (NoSuchCardException | IncorrectNumberOfCardsException e) {
-            handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, e.getMessage());
-            sendDrawRequest(parser.getPlayerId());
-        }
-        catch (NumberFormatException e) {
-            String message = "Incorrect input" + parser.getActionParameters() + ".";
-            handleWrite(game.getId(), parser.getPlayerId(), MessageParser.Action.DENY, message);
-            sendDrawRequest(parser.getPlayerId());
-        }
-    }
-
-    /**
-     * Method handles readable key in endgame process. Changes <code>missingPlayers</code> and <code>playersWantToPlay</code>.
-     *
-     * @param key SelectionKey given by Selector
-     * @param playersMissing Number of players needed to start new game.
-     * @param playersWantToPlay ArrayList containing indices of players that declared will to play next game.
-     * @param acceptedLastRequest HashMap containing information if players accepted last end request.
-     * @return Number of still missing players.
-     * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
-     */
-    private static int readableKeyInEndgameProcess(SelectionKey key, int playersMissing, Set<Integer> playersWantToPlay,
-                                                   HashMap<Integer, Boolean> acceptedLastRequest) throws IOException {
-        try {
-            MessageParser parser = handleRead(key);
-
-            if (parser.getActionType() == MessageParser.Action.DISCONNECT) {
-                playersMissing++;
-
-                disconnect((SocketChannel) key.channel(), parser);
-                clients.remove(parser.getPlayerId());
-
-                playersWantToPlay.remove(parser.getPlayerId());
-                acceptedLastRequest.remove(parser.getPlayerId());
-
-                sendEnd(playersMissing, acceptedLastRequest);
-            }
-
-            if (parser.getActionType() == MessageParser.Action.ACCEPT) {
-                playersWantToPlay.add(parser.getPlayerId());
-                acceptedLastRequest.put(parser.getPlayerId(), true);
-            }
-        } catch (EmptyMessageException ignored) {
-
-        }
-
-        return playersMissing;
-    }
-
-    /**
-     * Method handles acceptable keys in endgame process.
-     * Changes <code>missingPlayers</code> and <code>playersWantToPlay</code>.
-     * Accepts new players.
-     *
-     * @param serverSocketChannel ServerSocketChannel that is responsible for accepting connections.
-     * @param playersMissing Number of players needed to start new game.
-     * @param playersWantToPlay ArrayList containing indices of players that declared will to play next game.
-     * @param acceptedLastRequest HashMap containing information if players accepted last end request.
-     * @throws IOException Something goes wrong while accepting connection or while receiving or sending message.
-     * For further information please see {@link java.nio.channels.ServerSocketChannel}, {@link java.nio.channels.SocketChannel}.
-     * @return New number of players needed to start new game.
-     */
-    private static int acceptableKeyInEndgameProcess(ServerSocketChannel serverSocketChannel,
-                                                     int playersMissing, Set<Integer> playersWantToPlay,
-                                                      HashMap<Integer, Boolean> acceptedLastRequest) throws IOException {
-        int id = handleAccept(serverSocketChannel);
-
-        if (id != -1) {
-            playersWantToPlay.add(id);
-            playersMissing--;
-
-            sendEnd(playersMissing, acceptedLastRequest);
-        }
-
-        return playersMissing;
-    }
-
-    /**
-     * Handles reading keys in drawing process;
-     *
-     * @param key SelectionKey given by Selector.
-     * @param drawerIndex Index of the drawer in the biddingOrder.
-     * @return Next drawer index.
-     * @throws IOException Something goes wrong while receiving or sending message. For further information please see {@link java.nio.channels.SocketChannel}.
-     */
-    private static int handleReadableKeyInDrawing(SelectionKey key, int drawerIndex) throws IOException {
-        MessageParser parser = handleRead(key);
-
-        switch (parser.getActionType()) {
-            case DISCONNECT -> disconnect((SocketChannel) key.channel(), parser);
-            case HAND -> {
-                sendPlayerHands(parser.getPlayerId());
-                sendDrawRequest(parser.getPlayerId());
-            }
-            case EVAL -> {
-                sendPlayerEvaluations(parser.getPlayerId());
-                sendDrawRequest(parser.getPlayerId());
-            }
-            case DRAW -> handleDrawRequest(parser);
-            default -> System.out.println("Unexpected action.");
-        }
-
-        return drawerIndex;
     }
 }

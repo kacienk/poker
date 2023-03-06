@@ -222,7 +222,7 @@ public class Game {
     /**
      * Method handles giving winners their prize.
      *
-     * @return Returns hash map where key is playerId and value the prize he won.
+     * @return Returns hash map where key is playerId and value the prize they won.
      */
     public HashMap<Integer, Integer> splitStakeBetweenWinners() {
         ArrayList<Integer> winners = createWinnersList();
@@ -237,8 +237,11 @@ public class Game {
         gameOn = false;
         stake = 0;
 
-        for (Integer id: playersToRemove)
-            players.remove(id);
+        for (Integer playerId: playersToRemove)
+            players.remove(playerId);
+
+        for (Integer playerId: players.keySet())
+            playerPrizes.putIfAbsent(playerId, 0);
 
         for (Player player: players.values())
             player.clearHand();
@@ -307,8 +310,8 @@ public class Game {
         int numberOfCards = 5;
 
         for (int i = 0; i < numberOfCards; i++)
-            for (Integer id: getBiddingOrder()) {
-                Player player = players.get(id);
+            for (Integer playerId: getBiddingOrder()) {
+                Player player = players.get(playerId);
                 player.receiveCard(deck.dealCard());
             }
 
@@ -328,9 +331,9 @@ public class Game {
         ArrayList<Integer> ranking = createRanking();
         HandEvaluator handEvaluator = new HandEvaluator();
 
-        for (Integer id : ranking)
-            if (!hasFolded(id)) {
-                winners.add(id);
+        for (Integer playerId : ranking)
+            if (!hasFolded(playerId)) {
+                winners.add(playerId);
                 break;
             }
 

@@ -98,17 +98,12 @@ public class Game {
     }
 
     /**
-     * Method returning HashMap where player IDs are keys and their hands i.e. ArrayList containing 5 cards.
+     * Method returning player's hand i.e. ArrayList containing 5 cards.
      *
-     * @return HashMap with players hands.
+     * @return ArrayList with player hand.
      */
-    public HashMap<Integer, ArrayList<Card>> getPlayerHands() {
-        HashMap<Integer, ArrayList<Card>> playerHands = new HashMap<>();
-
-        for (Player player: players.values())
-            playerHands.put(player.getId(), player.getHand());
-
-        return playerHands;
+    public ArrayList<Card> getPlayerHand(int playerId) {
+        return players.get(playerId).getHand();
     }
 
     /**

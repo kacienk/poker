@@ -53,6 +53,17 @@ public class MessageParser {
     public void parse(String message) {
         args.clear();
         args.addAll(Arrays.asList(message.split("/")));
+
+        try {
+            getGameId();
+            getPlayerId();
+            getActionType();
+            getActionParameters();
+        }
+        catch (Exception e) {
+            System.out.println("Invalid message.");
+            setInvalidMessageTemplate();
+        }
     }
 
     /**
@@ -120,6 +131,7 @@ public class MessageParser {
             case "drw" -> { return Action.DRAW; }
             case "crd" -> { return Action.CREDIT; }
             case "prz" -> { return Action.PRIZE; }
+            case "inv" -> { return Action.INVALID; }
             default -> { return Action.DENY; }
         }
     }

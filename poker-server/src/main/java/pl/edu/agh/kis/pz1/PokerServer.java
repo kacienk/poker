@@ -321,10 +321,14 @@ public class PokerServer {
      * @param id ID of the player that hand should be sent to.
      */
     private static void sendPlayerHands(Integer id) {
-        HashMap<Integer, ArrayList<Card>> playerHands = game.getPlayerHands();
+        StringBuilder sb = new StringBuilder();
 
-        for (Card card: playerHands.get(id))
-            handleWrite(game.getId(), id, MessageParser.Action.HAND, card.toString());
+        for (Card card: game.getPlayerHand(id)) {
+            sb.append(card);
+            sb.append('\n');
+        }
+
+        handleWrite(game.getId(), id, MessageParser.Action.HAND, sb.toString());
     }
 
     /**

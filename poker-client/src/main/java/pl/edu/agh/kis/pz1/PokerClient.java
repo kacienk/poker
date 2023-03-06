@@ -13,9 +13,9 @@ import java.util.concurrent.TimeUnit;
  * @author Kacper Cienkosz
  */
 public class PokerClient {
-    static int playerId = -1;
-    static int gameId = -1;
-    static private final String INCORRECT_INPUT = "Incorrect input.";
+    private static SocketChannel client;
+    private static int playerId = -1;
+    private static int gameId = -1;
 
     /**
      * Method main handles all client functionality.
@@ -26,11 +26,11 @@ public class PokerClient {
         String hostname = "localhost";
         int port = 31415;
 
-        SocketChannel client = connect(hostname, port);
+        client = connect(hostname, port);
 
-        handleGames(client);
+        handleGames();
 
-        disconnect(client);
+        disconnect();
     }
 
     private static SocketChannel connect(String hostname, int port) {
@@ -41,7 +41,7 @@ public class PokerClient {
 
             client = SocketChannel.open(new InetSocketAddress(hostname, port));
 
-            MessageParser parser = handleRead(client);
+            MessageParser parser = handleRead();
 
             if (parser.getActionType() == MessageParser.Action.DENY) {
                 System.out.println("Unable to establish connection.");
@@ -53,8 +53,8 @@ public class PokerClient {
             gameId = parser.getGameId();
 
             System.out.println("Connection has been established.\n" +
-                    "Your playerId is: " + playerId + ".\n" +
-                    "Your gameId is: " + gameId + ".");
+                    "Your player ID is: " + playerId + ".\n" +
+                    "Your game ID is: " + gameId + ".");
         }
         catch (IOException e) {
             e.printStackTrace();
@@ -63,7 +63,7 @@ public class PokerClient {
         return client;
     }
 
-    private static void disconnect(SocketChannel client) {
+    private static void disconnect() {
         handleWrite(MessageParser.Action.DISCONNECT, "", client);
 
         try {
@@ -87,38 +87,23 @@ public class PokerClient {
         System.out.println("Server disconnected.");
     }
 
-    private static MessageParser handleRead(SocketChannel client) {
+    private static MessageParser handleRead() {
         MessageParser parser = new MessageParser();
+        String data = "";
 
         try {
-            String data;
-
-            do {
+            while (data.isEmpty()) {
                 ByteBuffer buffer = ByteBuffer.allocate(1024);
                 client.read(buffer);
 
                 data = new String(buffer.array()).trim();
-            } while (data.isEmpty());
-
-            parser.parse(data);
-
+            }
         }
         catch (IOException e) {
             e.printStackTrace();
         }
 
-        // System.out.println("Received: " + parser);
-
-        try {
-            parser.getGameId();
-            parser.getPlayerId();
-            parser.getActionType();
-            parser.getActionParameters();
-        }
-        catch (Exception e) {
-            throw e;
-        }
-
+        parser.parse(data);
         return parser;
     }
 
@@ -136,37 +121,27 @@ public class PokerClient {
             ByteBuffer buffer = ByteBuffer.allocate(1024);
             buffer.put(message.getBytes());
             buffer.flip();
-            int bytesWritten = client.write(buffer);
-            // System.out.printf("Sending Message: %s\nbufferBytes: %d%n", message, bytesWritten);
+            client.write(buffer);
         }
         catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static void handleGames(SocketChannel client) {
-        MessageParser.Action lastAction = MessageParser.Action.ACCEPT;
-
+    private static void handleGames() {
         while (true) {
-            MessageParser parser = handleRead(client);
+            MessageParser parser = handleRead();
 
             switch (parser.getActionType()) {
-                case START -> {
-                    System.out.println("Game has started.");
-                    lastAction = MessageParser.Action.START;
-                }
-                case HAND -> lastAction = receiveHand(parser, lastAction);
-                case EVAL -> {
-                    System.out.println("Your hand value is: " + parser.getActionParameters());
-                    lastAction = MessageParser.Action.EVAL;
-                }
-                case DENY -> {
-                    System.out.println("Incorrect action: " + parser.getActionParameters());
-                    lastAction = MessageParser.Action.DENY;
-                }
+                case START -> System.out.println("Game has started.");
+                case HAND -> receiveHand(parser);
+                case EVAL -> System.out.println("Your hand value is: " + parser.getActionParameters());
+                case DENY -> System.out.println("Incorrect action: " + parser.getActionParameters());
+                case CREDIT -> System.out.println("Your current credit is: " + parser.getActionParameters() + ".");
+                case PRIZE -> handlePrize(parser);
                 case BID -> {
                     System.out.println("It is time for bidding.");
-                    ArrayList<String> stakes = new ArrayList<>(Arrays.asList(parser.getActionParameters().split(" ")));
+                    List<String> stakes = Arrays.asList(parser.getActionParameters().split(" "));
 
                     int currentStake = Integer.parseInt(stakes.get(0));
                     int howMuchToBid = Integer.parseInt(stakes.get(1));
@@ -178,8 +153,6 @@ public class PokerClient {
 
                     while (!correctAction)
                         correctAction = handleBidding(parser, client);
-
-                    lastAction = MessageParser.Action.BID;
                 }
                 case DRAW -> {
                     System.out.println("It is time for discarding cards.");
@@ -187,19 +160,11 @@ public class PokerClient {
 
                     while (!correctAction)
                         correctAction = handleDrawing(client);
-
-                    lastAction = MessageParser.Action.DRAW;
                 }
                 case DISCONNECT -> {
                     serverDisconnected(client);
                     return;
                 }
-                case CREDIT -> {
-                    System.out.println("Your current credit is: " + parser.getActionParameters() + ".");
-
-                    lastAction = MessageParser.Action.CREDIT;
-                }
-                case PRIZE -> handlePrize(parser);
                 case END -> {
                     if (!playerWantsToPlayOn(parser, client))
                         return;
@@ -236,7 +201,7 @@ public class PokerClient {
             return 0;
         }
 
-        System.out.println(INCORRECT_INPUT);
+        System.out.println("Incorrect input.");
         return -1;
     }
 
@@ -267,9 +232,9 @@ public class PokerClient {
                         if (scanned >= 0)
                             bid = scanned;
                         else
-                            System.out.println("Incorrect value. Bid should be greater or equal 0.");
+                            System.out.println("Incorrect value. Bid should be greater or equal than 0.");
                     } catch (InputMismatchException e) {
-                        System.out.println("Incorrect value. Your bid should be integer.");
+                        System.out.println("Incorrect value. Your bid should be an integer greater or equal than 0.");
                     }
 
                     try {
@@ -281,7 +246,7 @@ public class PokerClient {
                 handleWrite(MessageParser.Action.BID, Integer.toString(bid), client);
             }
             case "c" -> {
-                ArrayList<String> stakes = new ArrayList<>(Arrays.asList(parser.getActionParameters().split(" ")));
+                List<String> stakes = Arrays.asList(parser.getActionParameters().split(" "));
 
                 handleWrite(MessageParser.Action.BID, stakes.get(1), client);
             }
@@ -290,7 +255,7 @@ public class PokerClient {
             case "h" -> handleWrite(MessageParser.Action.HAND, "", client);
             case "r" -> handleWrite(MessageParser.Action.CREDIT, "", client);
             default -> {
-                System.out.println(INCORRECT_INPUT);
+                System.out.println("Incorrect input.");
                 return false;
             }
         }
@@ -324,7 +289,7 @@ public class PokerClient {
             case "e" -> handleWrite(MessageParser.Action.EVAL, "", client);
             case "h" -> handleWrite(MessageParser.Action.HAND, "", client);
             default -> {
-                System.out.println(INCORRECT_INPUT);
+                System.out.println("Incorrect input.");
                 return false;
             }
         }
@@ -344,12 +309,9 @@ public class PokerClient {
         System.out.println("You did not win.");
     }
 
-    private static MessageParser.Action receiveHand(MessageParser parser, MessageParser.Action lastAction) {
-        if (lastAction != MessageParser.Action.HAND)
-            System.out.println("Your hand:");
-
+    private static void receiveHand(MessageParser parser) {
+        System.out.println("Your hand:");
         System.out.println(parser.getActionParameters());
-        return MessageParser.Action.HAND;
     }
 
     private static boolean playerWantsToPlayOn(MessageParser parser, SocketChannel client) {
